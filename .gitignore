@@ -1,0 +1,96 @@
+# =========================
+# Terraform
+# =========================
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform plans
+*.tfplan
+tfplan
+
+# Terraform variables
+*.tfvars
+*.tfvars.json
+!envs/*.example.tfvars
+
+# Terraform CLI config
+.terraformrc
+terraform.rc
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# =========================
+# Build artifacts
+# =========================
+build/
+dist/
+*.zip
+
+# =========================
+# IDEs
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+
+# =========================
+# Docker
+# =========================
+docker-compose.override.yml
+
+# =========================
+# AWS
+# =========================
+.aws-sam/
+.serverless/
+
+# Local AWS credentials (if ever created)
+credentials
+config
+
+# =========================
+# Misc
+# =========================
+*.bak
+*.tmp
