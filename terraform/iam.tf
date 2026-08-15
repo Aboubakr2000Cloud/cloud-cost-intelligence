@@ -131,6 +131,30 @@ resource "aws_iam_role" "data_seeder" {
 }
 
 ##################################################
+# DB migrator Lambda Role
+##################################################
+
+resource "aws_iam_role" "db_migrator" {
+  name = "${local.name_prefix}-db-migrator-role"
+
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = local.common_tags
+}
+
+##################################################
+# DB Verifier Lambda Role
+##################################################
+
+resource "aws_iam_role" "db_verifier" {
+  name = "${local.name_prefix}-db-verifier-role"
+
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = local.common_tags
+}
+
+##################################################
 # Lambda Basic Execution Role
 ##################################################
 
@@ -147,6 +171,41 @@ resource "aws_iam_role_policy_attachment" "anomaly_detector_basic_execution" {
 resource "aws_iam_role_policy_attachment" "data_seeder_basic_execution" {
   role       = aws_iam_role.data_seeder.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "db_migrator_basic_execution" {
+  role       = aws_iam_role.db_migrator.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "db_migrator_vpc_execution" {
+  role       = aws_iam_role.db_migrator.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "db_migrator_secrets" {
+  role       = aws_iam_role.db_migrator.name
+  policy_arn = aws_iam_policy.secrets_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "db_migrator_parameter_store" {
+  role       = aws_iam_role.db_migrator.name
+  policy_arn = aws_iam_policy.parameter_store_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "db_migrator_kms" {
+  role       = aws_iam_role.db_migrator.name
+  policy_arn = aws_iam_policy.secrets_kms_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "db_verifier_basic_execution" {
+  role       = aws_iam_role.db_verifier.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "db_verifier_vpc_access" {
+  role       = aws_iam_role.db_verifier.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 ##################################################
@@ -194,6 +253,24 @@ resource "aws_iam_policy" "secrets_access" {
 }
 
 ##################################################
+# ECS Execution Role - Secrets Manager Access
+##################################################
+
+resource "aws_iam_role_policy_attachment" "ecs_execution_secrets_access" {
+  role       = aws_iam_role.ecs_execution.name
+  policy_arn = aws_iam_policy.secrets_access.arn
+}
+
+##################################################
+# ECS Execution Role - KMS Decrypt Access
+##################################################
+
+resource "aws_iam_role_policy_attachment" "ecs_execution_kms" {
+  role       = aws_iam_role.ecs_execution.name
+  policy_arn = aws_iam_policy.secrets_kms_access.arn
+}
+
+##################################################
 # Parameter Store Access
 ##################################################
 
@@ -222,6 +299,15 @@ resource "aws_iam_policy" "parameter_store_access" {
   })
 
   tags = local.common_tags
+}
+
+##################################################
+# ECS Execution Role - Parameter Store Access
+##################################################
+
+resource "aws_iam_role_policy_attachment" "ecs_execution_parameter_store_access" {
+  role       = aws_iam_role.ecs_execution.name
+  policy_arn = aws_iam_policy.parameter_store_access.arn
 }
 
 ##################################################
@@ -299,6 +385,31 @@ resource "aws_iam_policy" "sns_publish" {
       ]
 
       Resource = module.monitoring.sns_topic_arn
+    }]
+  })
+
+  tags = local.common_tags
+}
+
+##################################################
+# kms policy
+##################################################
+
+resource "aws_iam_policy" "secrets_kms_access" {
+  name        = "${local.name_prefix}-secrets-kms-access"
+  description = "Allow Lambda functions to decrypt Secrets Manager secrets"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [{
+      Effect = "Allow"
+
+      Action = [
+        "kms:Decrypt"
+      ]
+
+      Resource = module.security.kms_key_arn
     }]
   })
 
@@ -384,4 +495,42 @@ resource "aws_iam_role_policy_attachment" "data_seeder_parameter_store" {
 resource "aws_iam_role_policy_attachment" "data_seeder_dynamodb" {
   role       = aws_iam_role.data_seeder.name
   policy_arn = aws_iam_policy.dynamodb_access.arn
+}
+
+##################################################
+# DB Verifier Role Attachments
+##################################################
+
+resource "aws_iam_role_policy_attachment" "db_verifier_secrets" {
+  role       = aws_iam_role.db_verifier.name
+  policy_arn = aws_iam_policy.secrets_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "db_verifier_parameter_store" {
+  role       = aws_iam_role.db_verifier.name
+  policy_arn = aws_iam_policy.parameter_store_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "db_verifier_kms" {
+  role       = aws_iam_role.db_verifier.name
+  policy_arn = aws_iam_policy.secrets_kms_access.arn
+}
+
+##################################################
+# kms key role Attachments
+##################################################
+
+resource "aws_iam_role_policy_attachment" "data_seeder_kms" {
+  role       = aws_iam_role.data_seeder.name
+  policy_arn = aws_iam_policy.secrets_kms_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "collector_kms" {
+  role       = aws_iam_role.collector.name
+  policy_arn = aws_iam_policy.secrets_kms_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "anomaly_detector_kms" {
+  role       = aws_iam_role.anomaly_detector.name
+  policy_arn = aws_iam_policy.secrets_kms_access.arn
 }

@@ -59,6 +59,8 @@ module "security" {
 
   account_id = data.aws_caller_identity.current.account_id
 
+  ecs_execution_role_arn = aws_iam_role.ecs_execution.arn
+
   enable_guardduty = false
 
   tags = local.common_tags
@@ -107,7 +109,7 @@ module "anomaly_detector_lambda" {
 
   role_arn = aws_iam_role.anomaly_detector.arn
 
-  handler = "app.lambda_handler"
+  handler = "app.handler"
 
   filename         = "${path.module}/../build/anomaly_detector.zip"
   source_code_hash = filebase64sha256("${path.module}/../build/anomaly_detector.zip")
@@ -145,6 +147,46 @@ module "data_seeder_lambda" {
   tags = local.common_tags
 }
 
+module "db_migrator_lambda" {
+  source = "./modules/lambda"
+
+  function_name = "${local.name_prefix}-db_migrator"
+
+  role_arn = aws_iam_role.db_migrator.arn
+
+  handler = "app.lambda_handler"
+
+  filename         = "${path.module}/../build/db_migrator.zip"
+  source_code_hash = filebase64sha256("${path.module}/../build/db_migrator.zip")
+
+  private_subnet_ids = module.vpc.private_subnet_ids
+  lambda_sg_id       = module.security_groups.lambda_sg_id
+
+  environment_variables = local.lambda_environment
+
+  tags = local.common_tags
+}
+
+module "db_verifier_lambda" {
+  source = "./modules/lambda"
+
+  function_name = "${local.name_prefix}-db_verifier"
+
+  role_arn = aws_iam_role.db_verifier.arn
+
+  handler = "app.lambda_handler"
+
+  filename         = "${path.module}/../build/db_verifier.zip"
+  source_code_hash = filebase64sha256("${path.module}/../build/db_verifier.zip")
+
+  private_subnet_ids = module.vpc.private_subnet_ids
+  lambda_sg_id       = module.security_groups.lambda_sg_id
+
+  environment_variables = local.lambda_environment
+
+  tags = local.common_tags
+}
+
 # ── INGESTION ───────────────────────────────────────────────────────────
 module "ingestion" {
   source = "./modules/ingestion"
@@ -169,7 +211,7 @@ module "ecs" {
   cluster_name   = "${local.name_prefix}-cluster"
   service_name   = var.service_name
   container_name = var.container_name
-  image_url      = "${module.ecr.repository_url}:bootstrap"
+  image_url      = "${module.ecr.repository_url}:latest"
 
   private_subnet_ids = module.vpc.private_subnet_ids
   ecs_task_sg_id     = module.security_groups.ecs_task_sg_id
@@ -209,6 +251,8 @@ module "alb" {
 # ── FRONTEND ───────────────────────────────────────────────────────────
 module "frontend" {
   source = "./modules/frontend"
+
+  alb_dns_name = module.alb.alb_dns_name
 
   name_prefix = local.name_prefix
 

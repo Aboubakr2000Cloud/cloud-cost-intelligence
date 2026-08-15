@@ -92,3 +92,8 @@ output "events_table_arn" {
   description = "Events table ARN"
   value       = module.dynamodb.events_table_arn
 }
+
+output "db_verifier_lambda_name" {
+  description = "Database verification Lambda function name"
+  value       = module.db_verifier_lambda.function_name
+}

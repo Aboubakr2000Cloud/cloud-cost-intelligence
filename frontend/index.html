@@ -1,0 +1,2979 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="description"
+        content="CloudCost Intelligence — AWS cloud cost visibility, forecasting and anomaly detection."
+    >
+
+    <title>CloudCost Intelligence</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+
+        /* =========================================================
+           DESIGN TOKENS
+           ========================================================= */
+
+        :root {
+            --bg: #080d17;
+            --surface: #0d1421;
+            --surface-2: #111a29;
+            --surface-3: #151f30;
+
+            --border: #1d2a3d;
+            --border-light: #243249;
+
+            --text: #f4f7fb;
+            --text-secondary: #a7b3c5;
+            --text-muted: #66758a;
+
+            --accent: #38bdf8;
+            --accent-soft: rgba(56, 189, 248, 0.10);
+
+            --success: #34d399;
+            --success-soft: rgba(52, 211, 153, 0.10);
+
+            --warning: #fbbf24;
+            --warning-soft: rgba(251, 191, 36, 0.10);
+
+            --danger: #f87171;
+            --danger-soft: rgba(248, 113, 113, 0.10);
+
+            --high: #fb923c;
+
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+
+            --shadow:
+                0 12px 35px rgba(0, 0, 0, 0.18);
+        }
+
+
+        /* =========================================================
+           RESET
+           ========================================================= */
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+
+        body {
+            min-height: 100vh;
+
+            background:
+                radial-gradient(
+                    circle at 15% 0%,
+                    rgba(56, 189, 248, 0.045),
+                    transparent 28%
+                ),
+                var(--bg);
+
+            color: var(--text);
+
+            font-family:
+                Inter,
+                ui-sans-serif,
+                system-ui,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            line-height: 1.5;
+        }
+
+
+        button {
+            font: inherit;
+        }
+
+
+        /* =========================================================
+           APP SHELL
+           ========================================================= */
+
+        .app {
+            min-height: 100vh;
+        }
+
+
+        /* =========================================================
+           HEADER
+           ========================================================= */
+
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+
+            height: 68px;
+
+            display: flex;
+            align-items: center;
+
+            padding: 0 32px;
+
+            background:
+                rgba(8, 13, 23, 0.88);
+
+            backdrop-filter: blur(16px);
+
+            border-bottom:
+                1px solid var(--border);
+        }
+
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+
+        .brand-mark {
+            width: 34px;
+            height: 34px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 9px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #38bdf8,
+                    #0284c7
+                );
+
+            color: #fff;
+
+            font-size: 17px;
+            font-weight: 800;
+
+            box-shadow:
+                0 5px 20px rgba(56, 189, 248, 0.20);
+        }
+
+
+        .brand-name {
+            font-size: 15px;
+            font-weight: 700;
+
+            letter-spacing: -0.01em;
+        }
+
+
+        .brand-subtitle {
+            color: var(--text-muted);
+            font-size: 11px;
+            margin-left: 3px;
+        }
+
+
+        .header-actions {
+            margin-left: auto;
+
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+
+            color: var(--text-secondary);
+
+            font-size: 12px;
+        }
+
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+
+            border-radius: 50%;
+
+            background: var(--success);
+
+            box-shadow:
+                0 0 0 4px var(--success-soft);
+        }
+
+
+        .status-dot.error {
+            background: var(--danger);
+
+            box-shadow:
+                0 0 0 4px var(--danger-soft);
+        }
+
+
+        .refresh-button {
+            border: 1px solid var(--border-light);
+
+            background: var(--surface);
+
+            color: var(--text-secondary);
+
+            width: 34px;
+            height: 34px;
+
+            border-radius: 8px;
+
+            cursor: pointer;
+
+            transition:
+                background 0.2s,
+                color 0.2s,
+                border-color 0.2s;
+        }
+
+
+        .refresh-button:hover {
+            background: var(--surface-3);
+            color: var(--text);
+            border-color: #36506d;
+        }
+
+
+        .refresh-button.loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+
+        /* =========================================================
+           NAVIGATION
+           ========================================================= */
+
+        .navigation {
+            border-bottom: 1px solid var(--border);
+
+            padding: 0 32px;
+
+            background: rgba(13, 20, 33, 0.75);
+        }
+
+
+        .nav-inner {
+            max-width: 1440px;
+            margin: auto;
+
+            display: flex;
+            gap: 26px;
+        }
+
+
+        .nav-item {
+            padding: 14px 2px 12px;
+
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+
+            color: var(--text-muted);
+
+            font-size: 12px;
+            font-weight: 600;
+
+            cursor: pointer;
+
+            font-family: inherit;
+
+            transition:
+                color 0.2s ease,
+                border-color 0.2s ease;
+        }
+
+
+        .nav-item:hover {
+            color: var(--text);
+        }
+
+
+        .nav-item.active {
+            color: var(--text);
+            border-color: var(--accent);
+        }
+        
+        /* =========================================================
+           SPA VIEWS
+           ========================================================= */
+
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active-view {
+            display: block;
+        }
+        
+        /* =========================================================
+           MAIN
+           ========================================================= */
+
+        .main {
+            max-width: 1440px;
+
+            margin: 0 auto;
+
+            padding: 34px 32px 60px;
+        }
+
+
+        /* =========================================================
+           PAGE HEADER
+           ========================================================= */
+
+        .page-header {
+            display: flex;
+
+            align-items: flex-end;
+
+            justify-content: space-between;
+
+            margin-bottom: 28px;
+        }
+
+
+        .eyebrow {
+            color: var(--accent);
+
+            font-size: 11px;
+            font-weight: 700;
+
+            text-transform: uppercase;
+
+            letter-spacing: 0.10em;
+
+            margin-bottom: 7px;
+        }
+
+
+        .page-title {
+            font-size: 28px;
+
+            letter-spacing: -0.035em;
+
+            font-weight: 750;
+        }
+
+
+        .page-description {
+            color: var(--text-muted);
+
+            font-size: 13px;
+
+            margin-top: 5px;
+        }
+
+
+        .updated {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+
+        /* =========================================================
+           KPI GRID
+           ========================================================= */
+
+        .kpi-grid {
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, minmax(0, 1fr));
+
+            gap: 14px;
+
+            margin-bottom: 18px;
+        }
+
+
+        .kpi {
+            position: relative;
+
+            background: var(--surface);
+
+            border: 1px solid var(--border);
+
+            border-radius: var(--radius-md);
+
+            padding: 20px;
+
+            min-height: 145px;
+
+            box-shadow: var(--shadow);
+
+            overflow: hidden;
+        }
+
+
+        .kpi::before {
+            content: "";
+
+            position: absolute;
+
+            left: 0;
+            top: 0;
+
+            width: 100%;
+            height: 2px;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    transparent,
+                    var(--accent),
+                    transparent
+                );
+
+            opacity: 0.35;
+        }
+
+
+        .kpi-label {
+            color: var(--text-muted);
+
+            font-size: 11px;
+
+            font-weight: 700;
+
+            text-transform: uppercase;
+
+            letter-spacing: 0.08em;
+
+            margin-bottom: 10px;
+        }
+
+
+        .kpi-value {
+            font-size: 27px;
+
+            font-weight: 750;
+
+            letter-spacing: -0.035em;
+        }
+
+
+        .kpi-meta {
+            display: flex;
+
+            align-items: center;
+
+            gap: 6px;
+
+            color: var(--text-muted);
+
+            font-size: 11px;
+
+            margin-top: 7px;
+        }
+
+
+        .kpi-meta.good {
+            color: var(--success);
+        }
+
+
+        .kpi-meta.warning {
+            color: var(--warning);
+        }
+
+
+        .kpi-meta.danger {
+            color: var(--danger);
+        }
+
+
+        /* =========================================================
+           CONTENT GRID
+           ========================================================= */
+
+        .content-grid {
+            display: grid;
+
+            grid-template-columns:
+                minmax(0, 2fr)
+                minmax(300px, 1fr);
+
+            gap: 16px;
+
+            margin-bottom: 16px;
+        }
+
+
+        .panel {
+            background: var(--surface);
+
+            border: 1px solid var(--border);
+
+            border-radius: var(--radius-md);
+
+            box-shadow: var(--shadow);
+
+            overflow: hidden;
+        }
+
+
+        .panel-header {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            padding: 18px 20px;
+
+            border-bottom: 1px solid var(--border);
+        }
+
+
+        .panel-title {
+            font-size: 13px;
+
+            font-weight: 700;
+
+            letter-spacing: -0.01em;
+        }
+
+
+        .panel-subtitle {
+            color: var(--text-muted);
+
+            font-size: 10px;
+
+            margin-top: 2px;
+        }
+
+
+        .panel-body {
+            padding: 20px;
+        }
+
+
+        /* =========================================================
+           CHARTS
+           ========================================================= */
+
+        .chart-container {
+            position: relative;
+
+            height: 320px;
+        }
+
+
+        /* =========================================================
+           HEALTH PANEL
+           ========================================================= */
+
+        .health {
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 20px;
+        }
+
+
+        .health-main {
+            display: flex;
+
+            align-items: center;
+
+            gap: 14px;
+
+            padding: 15px;
+
+            border-radius: 10px;
+
+            background: var(--success-soft);
+
+            border: 1px solid
+                rgba(52, 211, 153, 0.15);
+        }
+
+
+        .health-icon {
+            width: 38px;
+            height: 38px;
+
+            display: grid;
+
+            place-items: center;
+
+            border-radius: 10px;
+
+            background:
+                rgba(52, 211, 153, 0.14);
+
+            color: var(--success);
+
+            font-weight: 800;
+        }
+
+
+        .health-title {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+
+        .health-description {
+            color: var(--text-muted);
+            font-size: 10px;
+            margin-top: 2px;
+        }
+
+
+        .health-stat {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            padding-bottom: 12px;
+
+            border-bottom: 1px solid var(--border);
+        }
+
+
+        .health-stat:last-child {
+            border-bottom: 0;
+            padding-bottom: 0;
+        }
+
+
+        .health-stat-label {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+
+        .health-stat-value {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+
+        /* =========================================================
+           SERVICE TABLE
+           ========================================================= */
+
+        .service-list {
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 15px;
+        }
+
+
+        .service-row {
+            display: grid;
+
+            grid-template-columns:
+                1fr 90px 120px;
+
+            align-items: center;
+
+            gap: 15px;
+        }
+
+
+        .service-name {
+            min-width: 0;
+
+            font-size: 12px;
+
+            font-weight: 600;
+
+            white-space: nowrap;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+        }
+
+
+        .service-bar {
+            height: 5px;
+
+            background: #182333;
+
+            border-radius: 999px;
+
+            overflow: hidden;
+        }
+
+
+        .service-bar-fill {
+            height: 100%;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #0ea5e9,
+                    #38bdf8
+                );
+
+            border-radius: inherit;
+        }
+
+
+        .service-amount {
+            text-align: right;
+
+            font-size: 12px;
+
+            font-weight: 700;
+        }
+
+
+        /* =========================================================
+           ALERTS
+           ========================================================= */
+
+        .alerts {
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 9px;
+        }
+
+
+        .alert {
+            display: grid;
+
+            grid-template-columns:
+                5px 1fr auto;
+
+            gap: 12px;
+
+            align-items: center;
+
+            padding: 13px;
+
+            border-radius: 9px;
+
+            background: var(--surface-2);
+
+            border: 1px solid var(--border);
+        }
+
+
+        .alert-severity {
+            height: 36px;
+
+            border-radius: 999px;
+
+            background: var(--danger);
+        }
+
+
+        .alert.high .alert-severity {
+            background: var(--high);
+        }
+
+
+        .alert.medium .alert-severity {
+            background: var(--warning);
+        }
+
+
+        .alert.low .alert-severity {
+            background: var(--success);
+        }
+
+
+        .alert-service {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+
+        .alert-meta {
+            color: var(--text-muted);
+
+            font-size: 10px;
+
+            margin-top: 2px;
+        }
+
+
+        .alert-value {
+            text-align: right;
+        }
+
+
+        .alert-deviation {
+            color: var(--danger);
+
+            font-size: 13px;
+
+            font-weight: 750;
+        }
+
+
+        .alert-amount {
+            color: var(--text-muted);
+
+            font-size: 10px;
+
+            margin-top: 2px;
+        }
+
+
+        /* =========================================================
+           EMPTY STATE
+           ========================================================= */
+
+        .empty-state {
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            min-height: 160px;
+
+            text-align: center;
+        }
+
+
+        .empty-icon {
+            width: 38px;
+            height: 38px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 50%;
+
+            background: var(--success-soft);
+
+            color: var(--success);
+
+            margin-bottom: 10px;
+        }
+
+
+        .empty-title {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+
+        .empty-description {
+            color: var(--text-muted);
+
+            font-size: 11px;
+
+            max-width: 330px;
+
+            margin-top: 4px;
+        }
+
+
+        /* =========================================================
+           LOADING STATE
+           ========================================================= */
+
+        .loading-state {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            min-height: 160px;
+
+            color: var(--text-muted);
+
+            font-size: 12px;
+        }
+
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+
+            border:
+                2px solid var(--border-light);
+
+            border-top-color: var(--accent);
+
+            border-radius: 50%;
+
+            animation:
+                spin 0.8s linear infinite;
+
+            margin-right: 9px;
+        }
+
+
+        @keyframes spin {
+
+            to {
+                transform: rotate(360deg);
+            }
+
+        }
+
+
+        /* =========================================================
+           ERROR STATE
+           ========================================================= */
+
+        .error-state {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 20px;
+
+            padding: 16px;
+
+            margin-bottom: 18px;
+
+            background: var(--danger-soft);
+
+            border: 1px solid
+                rgba(248, 113, 113, 0.18);
+
+            border-radius: var(--radius-md);
+        }
+
+
+        .error-title {
+            color: var(--danger);
+
+            font-size: 12px;
+
+            font-weight: 700;
+        }
+
+
+        .error-description {
+            color: var(--text-muted);
+
+            font-size: 10px;
+
+            margin-top: 2px;
+        }
+
+
+        .retry-button {
+            border: 1px solid
+                rgba(248, 113, 113, 0.30);
+
+            background: transparent;
+
+            color: var(--danger);
+
+            border-radius: 7px;
+
+            padding: 7px 12px;
+
+            cursor: pointer;
+
+            font-size: 11px;
+
+            font-weight: 700;
+        }
+
+
+        .retry-button:hover {
+            background: var(--danger-soft);
+        }
+
+
+        /* =========================================================
+           FOOTER
+           ========================================================= */
+
+        .footer {
+            max-width: 1440px;
+
+            margin: 0 auto;
+
+            padding: 0 32px 30px;
+
+            color: var(--text-muted);
+
+            font-size: 10px;
+        }
+
+
+        /* =========================================================
+           RESPONSIVE
+           ========================================================= */
+
+        @media (max-width: 1050px) {
+
+            .kpi-grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+
+        @media (max-width: 700px) {
+
+            .header {
+                padding: 0 16px;
+            }
+
+            .brand-subtitle {
+                display: none;
+            }
+
+            .system-status {
+                display: none;
+            }
+
+            .navigation {
+                padding: 0 16px;
+                overflow-x: auto;
+            }
+
+            .nav-inner {
+                width: max-content;
+            }
+
+            .main {
+                padding:
+                    24px 16px 40px;
+            }
+
+            .page-header {
+                align-items: flex-start;
+
+                flex-direction: column;
+
+                gap: 7px;
+            }
+
+            .page-title {
+                font-size: 23px;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .service-row {
+                grid-template-columns:
+                    1fr 80px;
+            }
+
+            .service-bar {
+                display: none;
+            }
+
+            .alert {
+                grid-template-columns:
+                    4px 1fr;
+            }
+
+            .alert-value {
+                grid-column: 2;
+
+                text-align: left;
+            }
+
+            .view-section {
+                display: block;
+            }
+
+        }
+
+    </style>
+</head>
+
+
+<body>
+
+<div class="app">
+
+
+    <!-- =========================================================
+         HEADER
+         ========================================================= -->
+
+    <header class="header">
+
+        <div class="brand">
+
+            <div class="brand-mark">
+                C
+            </div>
+
+            <div>
+
+                <div class="brand-name">
+                    CloudCost Intelligence
+                </div>
+
+                <div class="brand-subtitle">
+                    AWS FinOps Platform
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="header-actions">
+
+            <div class="system-status">
+
+                <span
+                    class="status-dot"
+                    id="status-dot"
+                ></span>
+
+                <span id="system-status">
+                    Operational
+                </span>
+
+            </div>
+
+
+            <button
+                class="refresh-button"
+                id="refresh-button"
+                title="Refresh dashboard"
+                onclick="loadDashboard()"
+            >
+                ↻
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- =========================================================
+         NAVIGATION
+         ========================================================= -->
+
+    <nav class="navigation">
+
+        <div class="nav-inner">
+
+            <button
+                class="nav-item active"
+                data-view-target="overview"
+            >
+                Overview
+            </button>
+
+            <button
+                class="nav-item"
+                data-view-target="cost-explorer"
+            >
+                Cost Explorer
+            </button>
+
+            <button
+                class="nav-item"
+                data-view-target="services"
+            >
+                Services
+            </button>
+
+            <button
+                class="nav-item"
+                data-view-target="anomalies"
+            >
+                Anomalies
+            </button>
+
+        </div>
+
+    </nav>
+
+
+    <!-- =========================================================
+         MAIN
+         ========================================================= -->
+
+    <main class="main">
+
+
+        <!-- ERROR -->
+
+        <div
+            id="error-container"
+            style="display:none"
+        >
+
+            <div class="error-state">
+
+                <div>
+
+                    <div class="error-title">
+                        Unable to load dashboard
+                    </div>
+
+                    <div class="error-description">
+                        The CloudCost API could not be reached.
+                    </div>
+
+                </div>
+
+                <button
+                    class="retry-button"
+                    onclick="loadDashboard()"
+                >
+                    Retry
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- PAGE HEADER -->
+
+        <section class="page-header view-section active-view" data-view="overview">
+
+            <div>
+
+                <div class="eyebrow">
+                    Cloud spend overview
+                </div>
+
+                <h1 class="page-title">
+                    AWS Cost Intelligence
+                </h1>
+
+                <p class="page-description">
+                    Monitor spending, forecast costs and detect unusual activity.
+                </p>
+
+            </div>
+
+
+            <div
+                class="updated"
+                id="last-updated"
+            >
+                Updating...
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             KPI CARDS
+             ===================================================== -->
+
+        <section class="kpi-grid view-section active-view" data-view="overview">
+
+
+            <div class="kpi">
+
+                <div class="kpi-label">
+                    Month to date
+                </div>
+
+                <div
+                    class="kpi-value"
+                    id="mtd-total"
+                >
+                    —
+                </div>
+
+                <div
+                    class="kpi-meta"
+                    id="mtd-sub"
+                >
+                    Loading
+                </div>
+
+            </div>
+
+
+            <div class="kpi">
+
+                <div class="kpi-label">
+                    End of month forecast
+                </div>
+
+                <div
+                    class="kpi-value"
+                    id="forecast-total"
+                >
+                    —
+                </div>
+
+                <div
+                    class="kpi-meta"
+                    id="forecast-sub"
+                >
+                    Loading
+                </div>
+
+            </div>
+
+
+            <div class="kpi">
+
+                <div class="kpi-label">
+                    Average daily spend
+                </div>
+
+                <div
+                    class="kpi-value"
+                    id="daily-rate"
+                >
+                    —
+                </div>
+
+                <div class="kpi-meta">
+                    Current daily spending rate
+                </div>
+
+            </div>
+
+
+            <div class="kpi">
+
+                <div class="kpi-label">
+                    Active anomalies
+                </div>
+
+                <div
+                    class="kpi-value"
+                    id="alert-count"
+                >
+                    —
+                </div>
+
+                <div
+                    class="kpi-meta"
+                    id="alert-meta"
+                >
+                    Cost intelligence alerts
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             COST TREND + HEALTH
+             ===================================================== -->
+
+        <section class="content-grid view-section active-view" data-view="overview">
+
+
+            <!-- COST TREND -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <div class="panel-title">
+                            Cost trend
+                        </div>
+
+                        <div class="panel-subtitle">
+                            Daily AWS spend — last 30 days
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="panel-body">
+
+                    <div
+                        class="chart-container"
+                        id="daily-chart-wrapper"
+                    >
+
+                        <canvas
+                            id="dailyChart"
+                        ></canvas>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- COST HEALTH -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <div class="panel-title">
+                            Cost health
+                        </div>
+
+                        <div class="panel-subtitle">
+                            Current spending posture
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="panel-body health">
+
+
+                    <div class="health-main">
+
+                        <div class="health-icon">
+                            ✓
+                        </div>
+
+                        <div>
+
+                            <div
+                                class="health-title"
+                                id="health-title"
+                            >
+                                Within baseline
+                            </div>
+
+                            <div
+                                class="health-description"
+                                id="health-description"
+                            >
+                                No unusual spending detected.
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="health-stat">
+
+                        <span class="health-stat-label">
+                            Services monitored
+                        </span>
+
+                        <span
+                            class="health-stat-value"
+                            id="service-count"
+                        >
+                            —
+                        </span>
+
+                    </div>
+
+
+                    <div class="health-stat">
+
+                        <span class="health-stat-label">
+                            30-day spend
+                        </span>
+
+                        <span
+                            class="health-stat-value"
+                            id="thirty-day-total"
+                        >
+                            —
+                        </span>
+
+                    </div>
+
+
+                    <div class="health-stat">
+
+                        <span class="health-stat-label">
+                            Highest service
+                        </span>
+
+                        <span
+                            class="health-stat-value"
+                            id="highest-service"
+                        >
+                            —
+                        </span>
+
+                    </div>
+
+
+                </div>
+
+            </div>
+
+        </section>
+
+        
+        <!-- =====================================================
+             COST EXPLORER
+             ===================================================== -->
+
+        <section class="view-section" data-view="cost-explorer">
+
+            <div class="page-header">
+
+                <div>
+
+                    <div class="eyebrow">
+                        Cost analysis
+                    </div>
+
+                    <h1 class="page-title">
+                        Cost Explorer
+                    </h1>
+
+                    <p class="page-description">
+                        Explore daily AWS spending and identify cost trends.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <section class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <div class="panel-title">
+                            Daily AWS spend
+                        </div>
+
+                        <div class="panel-subtitle">
+                            Cost movement across the last 30 days
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="panel-body">
+
+                    <div
+                        class="chart-container"
+                        style="height:360px"
+                    >
+
+                        <canvas
+                            id="explorerChart"
+                        ></canvas>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <section
+                class="kpi-grid"
+                style="margin-top:16px"
+            >
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        Month to date
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="explorer-mtd"
+                    >
+                        —
+                    </div>
+
+                    <div class="kpi-meta">
+                        Current month spend
+                    </div>
+
+                </div>
+
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        Forecast
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="explorer-forecast"
+                    >
+                        —
+                    </div>
+
+                    <div class="kpi-meta">
+                        Estimated month-end cost
+                    </div>
+
+                </div>
+
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        Daily average
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="explorer-daily"
+                    >
+                        —
+                    </div>
+
+                    <div class="kpi-meta">
+                        Current spending rate
+                    </div>
+
+                </div>
+
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        Days remaining
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="explorer-remaining"
+                    >
+                        —
+                    </div>
+
+                    <div class="kpi-meta">
+                        Current billing month
+                    </div>
+
+                </div>
+
+            </section>
+
+        </section>
+
+
+        <!-- =====================================================
+             SERVICE SPEND
+             ===================================================== -->
+
+        <section
+            class="panel view-section"
+            data-view="services"
+            style="margin-bottom:16px"
+        >
+
+
+            <div class="panel-header">
+
+                <div>
+
+                    <div class="panel-title">
+                        Service spend
+                    </div>
+
+                    <div class="panel-subtitle">
+                        Top AWS services by spend over the last 30 days
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="panel-body">
+
+                <div
+                    class="service-list"
+                    id="service-list"
+                >
+
+                    <div class="loading-state">
+
+                        <span class="spinner"></span>
+
+                        Loading services...
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             ANOMALIES
+             ===================================================== -->
+
+        <section class="panel view-section" data-view="anomalies">
+
+
+            <div class="panel-header">
+
+                <div>
+
+                    <div class="panel-title">
+                        Recent cost anomalies
+                    </div>
+
+                    <div class="panel-subtitle">
+                        Spending significantly above historical baseline
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="panel-body">
+
+                <div
+                    class="alerts"
+                    id="alerts-list"
+                >
+
+                    <div class="loading-state">
+
+                        <span class="spinner"></span>
+
+                        Loading anomalies...
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+
+    <!-- =========================================================
+         FOOTER
+         ========================================================= -->
+
+    <footer class="footer">
+
+        CloudCost Intelligence · AWS FinOps Platform
+
+    </footer>
+
+
+</div>
+
+
+<script>
+
+
+/* =============================================================
+   CONFIGURATION
+   ============================================================= */
+
+/*
+ * During local development:
+ *
+ *     window.API_BASE = "http://localhost:5000";
+ *
+ * In production:
+ *
+ *     window.API_BASE = "";
+ *
+ * This means CloudFront can serve the frontend while
+ * the API is exposed separately through the ALB.
+ */
+
+const API_BASE =
+    window.API_BASE || "";
+
+
+/* =============================================================
+   CHART STATE
+   ============================================================= */
+
+let dailyChart = null;
+
+
+/* =============================================================
+   API HELPER
+   ============================================================= */
+
+async function fetchJSON(endpoint) {
+
+    const response =
+        await fetch(
+            API_BASE + endpoint,
+            {
+                headers: {
+                    "Accept": "application/json"
+                }
+            }
+        );
+
+
+    if (!response.ok) {
+
+        throw new Error(
+            `API request failed: ${response.status}`
+        );
+
+    }
+
+
+    return response.json();
+
+}
+
+
+/* =============================================================
+   FORMATTERS
+   ============================================================= */
+
+function money(value) {
+
+    const number =
+        Number(value || 0);
+
+
+    return new Intl.NumberFormat(
+        "en-US",
+        {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }
+    ).format(number);
+
+}
+
+
+function serviceName(name) {
+
+    return String(name || "")
+        .replace("Amazon ", "")
+        .replace("AWS ", "");
+
+}
+
+
+/* =============================================================
+   LOADING STATE
+   ============================================================= */
+
+function setLoadingState(isLoading) {
+
+    const button =
+        document.getElementById(
+            "refresh-button"
+        );
+
+
+    if (isLoading) {
+
+        button.classList.add("loading");
+
+        button.textContent = "…";
+
+    } else {
+
+        button.classList.remove("loading");
+
+        button.textContent = "↻";
+
+    }
+
+}
+
+
+/* =============================================================
+   ERROR STATE
+   ============================================================= */
+
+function showError() {
+
+    document
+        .getElementById(
+            "error-container"
+        )
+        .style.display = "block";
+
+
+    document
+        .getElementById(
+            "system-status"
+        )
+        .textContent = "API unavailable";
+
+
+    document
+        .getElementById(
+            "status-dot"
+        )
+        .classList.add("error");
+
+}
+
+
+function hideError() {
+
+    document
+        .getElementById(
+            "error-container"
+        )
+        .style.display = "none";
+
+
+    document
+        .getElementById(
+            "system-status"
+        )
+        .textContent = "Operational";
+
+
+    document
+        .getElementById(
+            "status-dot"
+        )
+        .classList.remove("error");
+
+}
+
+
+/* =============================================================
+   DAILY CHART
+   ============================================================= */
+
+function renderDailyChart(data) {
+
+    const canvas =
+        document.getElementById(
+            "dailyChart"
+        );
+
+
+    if (dailyChart) {
+
+        dailyChart.destroy();
+
+    }
+
+
+    const labels =
+        data.map(
+            item => item.date.slice(5)
+        );
+
+
+    const values =
+        data.map(
+            item => Number(item.total || 0)
+        );
+
+
+    dailyChart =
+        new Chart(
+            canvas.getContext("2d"),
+            {
+                type: "line",
+
+                data: {
+
+                    labels,
+
+                    datasets: [
+
+                        {
+
+                            label:
+                                "Daily spend",
+
+                            data:
+                                values,
+
+                            borderColor:
+                                "#38bdf8",
+
+                            backgroundColor:
+                                "rgba(56, 189, 248, 0.08)",
+
+                            borderWidth: 2,
+
+                            fill: true,
+
+                            tension: 0.35,
+
+                            pointRadius: 0,
+
+                            pointHoverRadius: 4
+
+                        }
+
+                    ]
+
+                },
+
+                options: {
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+                    interaction: {
+
+                        intersect: false,
+
+                        mode: "index"
+
+                    },
+
+                    plugins: {
+
+                        legend: {
+                            display: false
+                        },
+
+                        tooltip: {
+
+                            callbacks: {
+
+                                label:
+                                    context =>
+                                        money(
+                                            context.parsed.y
+                                        )
+
+                            }
+
+                        }
+
+                    },
+
+                    scales: {
+
+                        x: {
+
+                            grid: {
+                                display: false
+                            },
+
+                            ticks: {
+
+                                color:
+                                    "#66758a",
+
+                                font: {
+                                    size: 10
+                                },
+
+                                maxTicksLimit: 8
+
+                            }
+
+                        },
+
+                        y: {
+
+                            beginAtZero: true,
+
+                            grid: {
+
+                                color:
+                                    "rgba(255,255,255,0.04)"
+
+                            },
+
+                            ticks: {
+
+                                color:
+                                    "#66758a",
+
+                                font: {
+                                    size: 10
+                                },
+
+                                callback:
+                                    value =>
+                                        "$" +
+                                        Number(value)
+                                            .toFixed(0)
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+
+}
+
+
+/* =============================================================
+   SERVICE LIST
+   ============================================================= */
+
+function renderServices(services) {
+
+    const container =
+        document.getElementById(
+            "service-list"
+        );
+
+
+    if (!services.length) {
+
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                <div class="empty-icon">
+                    ✓
+                </div>
+
+                <div class="empty-title">
+                    No service data
+                </div>
+
+                <div class="empty-description">
+                    No cost records are currently available.
+                </div>
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    const max =
+        Math.max(
+            ...services.map(
+                service =>
+                    Number(
+                        service.total || 0
+                    )
+            )
+        );
+
+
+    container.innerHTML =
+        services
+            .map(service => {
+
+                const total =
+                    Number(
+                        service.total || 0
+                    );
+
+
+                const percentage =
+                    max > 0
+                        ? (total / max) * 100
+                        : 0;
+
+
+                return `
+
+                    <div class="service-row">
+
+                        <div class="service-name"
+                             title="${serviceName(service.service)}">
+
+                            ${serviceName(service.service)}
+
+                        </div>
+
+
+                        <div class="service-bar">
+
+                            <div
+                                class="service-bar-fill"
+                                style="width:${percentage}%"
+                            ></div>
+
+                        </div>
+
+
+                        <div class="service-amount">
+
+                            ${money(total)}
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            })
+            .join("");
+
+}
+
+
+
+
+/* =============================================================
+   ALERTS
+   ============================================================= */
+
+function renderAlerts(alerts) {
+
+    const container =
+        document.getElementById(
+            "alerts-list"
+        );
+
+
+    if (!alerts.length) {
+
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                <div class="empty-icon">
+                    ✓
+                </div>
+
+                <div class="empty-title">
+                    No anomalies detected
+                </div>
+
+                <div class="empty-description">
+                    Current spending is within the expected historical baseline.
+                </div>
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML =
+        alerts
+            .map(alert => {
+
+                const severity =
+                    String(
+                        alert.severity || "medium"
+                    )
+                    .toLowerCase();
+
+
+                return `
+
+                    <div class="alert ${severity}">
+
+                        <div
+                            class="alert-severity"
+                        ></div>
+
+
+                        <div>
+
+                            <div class="alert-service">
+
+                                ${serviceName(
+                                    alert.service
+                                )}
+
+                            </div>
+
+
+                            <div class="alert-meta">
+
+                                ${alert.date}
+                                ·
+                                ${severity.toUpperCase()}
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="alert-value">
+
+                            <div class="alert-deviation">
+
+                                +${Number(
+                                    alert.deviation_pct || 0
+                                ).toFixed(1)}%
+
+                            </div>
+
+
+                            <div class="alert-amount">
+
+                                ${money(
+                                    alert.actual_amount
+                                )}
+
+                                vs
+
+                                ${money(
+                                    alert.expected_amount
+                                )}
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            })
+            .join("");
+
+}
+
+
+/* =============================================================
+   COST HEALTH
+   ============================================================= */
+
+function updateHealth(
+    alerts,
+    services,
+    daily
+) {
+
+    const count =
+        alerts.length;
+
+
+    const healthTitle =
+        document.getElementById(
+            "health-title"
+        );
+
+
+    const healthDescription =
+        document.getElementById(
+            "health-description"
+        );
+
+
+    if (count === 0) {
+
+        healthTitle.textContent =
+            "Within baseline";
+
+        healthDescription.textContent =
+            "No unusual spending detected.";
+
+    } else if (count < 3) {
+
+        healthTitle.textContent =
+            "Needs attention";
+
+        healthDescription.textContent =
+            `${count} cost anomaly ${
+                count === 1
+                    ? "requires"
+                    : "require"
+            } review.`;
+
+    } else {
+
+        healthTitle.textContent =
+            "Elevated risk";
+
+        healthDescription.textContent =
+            `${count} active cost anomalies detected.`;
+
+    }
+
+
+    document
+        .getElementById(
+            "service-count"
+        )
+        .textContent =
+        services.length;
+
+
+    const thirtyDayTotal =
+        daily.reduce(
+            (sum, item) =>
+                sum +
+                Number(
+                    item.total || 0
+                ),
+            0
+        );
+
+
+    document
+        .getElementById(
+            "thirty-day-total"
+        )
+        .textContent =
+        money(thirtyDayTotal);
+
+
+    if (services.length) {
+
+        document
+            .getElementById(
+                "highest-service"
+            )
+            .textContent =
+            serviceName(
+                services[0].service
+            );
+
+    }
+
+}
+
+
+/* =============================================================
+   COST EXPLORER CHART
+   ============================================================= */
+
+let explorerChart = null;
+
+function renderExplorerChart(data) {
+
+    const canvas =
+        document.getElementById(
+            "explorerChart"
+        );
+
+    if (!canvas) {
+        return;
+    }
+
+    if (explorerChart) {
+        explorerChart.destroy();
+    }
+
+    const labels =
+        data.map(
+            item => item.date
+        );
+
+    const values =
+        data.map(
+            item =>
+                Number(
+                    item.total || 0
+                )
+        );
+
+    explorerChart =
+        new Chart(
+            canvas,
+            {
+                type: "line",
+
+                data: {
+                    labels: labels,
+
+                    datasets: [{
+                        label: "Daily AWS spend",
+
+                        data: values,
+
+                        borderColor:
+                            "#38bdf8",
+
+                        backgroundColor:
+                            "rgba(56, 189, 248, 0.10)",
+
+                        fill: true,
+
+                        tension: 0.35,
+
+                        pointRadius: 3,
+
+                        pointHoverRadius: 5
+                    }]
+                },
+
+                options: {
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+
+                                    return money(
+                                        context.parsed.y
+                                    );
+
+                                }
+                            }
+                        }
+                    },
+
+                    scales: {
+
+                        x: {
+                            grid: {
+                                display: false
+                            },
+
+                            ticks: {
+                                color:
+                                    "#66758a"
+                            }
+                        },
+
+                        y: {
+                            beginAtZero: true,
+
+                            grid: {
+                                color:
+                                    "rgba(255,255,255,0.05)"
+                            },
+
+                            ticks: {
+                                color:
+                                    "#66758a",
+
+                                callback: function(value) {
+
+                                    return money(
+                                        value
+                                    );
+
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+        );
+
+    window.explorerChart =
+        explorerChart;
+}
+
+/* =============================================================
+   MAIN DASHBOARD LOADER
+   ============================================================= */
+
+async function loadDashboard() {
+
+    setLoadingState(true);
+
+
+    try {
+
+        hideError();
+
+
+        const [
+            forecast,
+            dailyResponse,
+            servicesResponse,
+            alertsResponse
+        ] = await Promise.all([
+
+            fetchJSON(
+                "/api/costs/forecast"
+            ),
+
+            fetchJSON(
+                "/api/costs/daily?days=30"
+            ),
+
+            fetchJSON(
+                "/api/costs/top-services?days=30&limit=8"
+            ),
+
+            fetchJSON(
+                "/api/alerts?limit=10"
+            )
+
+        ]);
+
+
+        const daily =
+            dailyResponse.data || [];
+
+
+        const services =
+            servicesResponse.services || [];
+
+
+        const alerts =
+            alertsResponse.alerts || [];
+
+
+        /* -----------------------------------------------------
+           KPI
+           ----------------------------------------------------- */
+
+        document
+            .getElementById(
+                "mtd-total"
+            )
+            .textContent =
+            money(
+                forecast.mtd_total
+            );
+
+
+        document
+            .getElementById(
+                "mtd-sub"
+            )
+            .textContent =
+            `${forecast.days_elapsed} days elapsed`;
+
+
+        document
+            .getElementById(
+                "forecast-total"
+            )
+            .textContent =
+            money(
+                forecast.forecast_total
+            );
+
+
+        document
+            .getElementById(
+                "forecast-sub"
+            )
+            .textContent =
+            `${forecast.days_remaining} days remaining`;
+
+
+        document
+            .getElementById(
+                "daily-rate"
+            )
+            .textContent =
+            money(
+                forecast.daily_rate
+            );
+
+
+        document
+            .getElementById(
+                "alert-count"
+            )
+            .textContent =
+            alertsResponse.count ??
+            alerts.length;
+
+
+        document
+            .getElementById(
+                "alert-meta"
+            )
+            .textContent =
+            alerts.length
+                ? "Review recommended"
+                : "No active anomalies";
+
+
+        /* -----------------------------------------------------
+           CHART
+           ----------------------------------------------------- */
+
+        renderDailyChart(
+            daily
+        );
+
+
+        renderExplorerChart(
+            daily
+        );
+
+
+        document
+            .getElementById(
+                "explorer-mtd"
+            )
+            .textContent =
+            money(
+                forecast.mtd_total
+            );
+
+
+        document
+            .getElementById(
+                "explorer-forecast"
+            )
+            .textContent =
+            money(
+                forecast.forecast_total
+            );
+
+
+        document
+            .getElementById(
+                "explorer-daily"
+            )
+            .textContent =
+            money(
+                forecast.daily_rate
+            );
+
+
+        document
+            .getElementById(
+                "explorer-remaining"
+            )
+            .textContent =
+            forecast.days_remaining;
+
+        /* -----------------------------------------------------
+           SERVICES
+           ----------------------------------------------------- */
+
+        renderServices(
+            services
+        );
+
+
+        /* -----------------------------------------------------
+           ALERTS
+           ----------------------------------------------------- */
+
+        renderAlerts(
+            alerts
+        );
+
+
+        /* -----------------------------------------------------
+           HEALTH
+           ----------------------------------------------------- */
+
+        updateHealth(
+            alerts,
+            services,
+            daily
+        );
+
+
+        /* -----------------------------------------------------
+           TIMESTAMP
+           ----------------------------------------------------- */
+
+        document
+            .getElementById(
+                "last-updated"
+            )
+            .textContent =
+            `Updated ${new Date()
+                .toLocaleTimeString()}`;
+
+
+    } catch (error) {
+
+        console.error(
+            "Dashboard load error:",
+            error
+        );
+
+
+        showError();
+
+
+    } finally {
+
+        setLoadingState(false);
+
+    }
+
+}
+
+
+/* =============================================================
+   INITIAL LOAD
+   ============================================================= */
+
+loadDashboard();
+
+
+/* =============================================================
+   AUTOMATIC REFRESH
+   ============================================================= */
+
+setInterval(
+    loadDashboard,
+    60000
+);
+
+
+
+/* =========================================================
+   SPA NAVIGATION
+   ========================================================= */
+
+let currentView = "overview";
+
+function switchView(viewName) {
+
+    currentView = viewName;
+
+    /*
+     * Hide every view.
+     */
+    document
+        .querySelectorAll(".view-section")
+        .forEach((section) => {
+
+            section.classList.remove(
+                "active-view"
+            );
+
+        });
+
+
+    /*
+     * Show selected view.
+     */
+    document
+        .querySelectorAll(
+            `.view-section[data-view="${viewName}"]`
+        )
+        .forEach((section) => {
+
+            section.classList.add(
+                "active-view"
+            );
+
+        });
+
+
+    /*
+     * Update navigation state.
+     */
+    document
+        .querySelectorAll(".nav-item")
+        .forEach((item) => {
+
+            item.classList.toggle(
+                "active",
+                item.dataset.viewTarget === viewName
+            );
+
+        });
+
+
+    /*
+     * Cost Explorer chart needs to be resized
+     * after becoming visible.
+     */
+    if (
+        viewName === "cost-explorer" &&
+        window.explorerChart
+    ) {
+
+        setTimeout(() => {
+
+            window.explorerChart.resize();
+
+        }, 50);
+
+    }
+
+}
+
+
+/*
+ * Navigation click handlers.
+ */
+
+document
+    .querySelectorAll(".nav-item[data-view-target]")
+    .forEach((item) => {
+
+        item.addEventListener(
+            "click",
+            () => {
+
+                switchView(
+                    item.dataset.viewTarget
+                );
+
+            }
+        );
+
+    });
+
+
+/*
+ * Start on Overview.
+ */
+
+switchView("overview");
+
+</script>
+
+</body>
+
+</html>

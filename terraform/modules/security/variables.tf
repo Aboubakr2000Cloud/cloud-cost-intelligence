@@ -11,3 +11,7 @@ variable "enable_guardduty" {
   default = true
 }
 
+variable "ecs_execution_role_arn" {
+  type = string
+}
+

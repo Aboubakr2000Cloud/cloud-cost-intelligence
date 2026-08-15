@@ -5,14 +5,33 @@ resource "aws_kms_key" "app" {
 
   policy = jsonencode({
     Version = "2012-10-17"
+
     Statement = [
       {
         Sid    = "Enable root account full access"
         Effect = "Allow"
+
         Principal = {
           AWS = "arn:aws:iam::${var.account_id}:root"
         }
+
         Action   = "kms:*"
+        Resource = "*"
+      },
+
+      {
+        Sid    = "Allow ECS execution role to decrypt secrets"
+        Effect = "Allow"
+
+        Principal = {
+          AWS = var.ecs_execution_role_arn
+        }
+
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey"
+        ]
+
         Resource = "*"
       }
     ]

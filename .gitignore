@@ -1,96 +1,89 @@
-# =========================
-# Terraform
-# =========================
-.terraform/
-*.tfstate
-*.tfstate.*
-crash.log
-crash.*.log
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Terraform plans
-*.tfplan
-tfplan
-
-# Terraform variables
-*.tfvars
-*.tfvars.json
-!envs/*.example.tfvars
-
-# Terraform CLI config
-.terraformrc
-terraform.rc
-
-# =========================
+# ============================================================
 # Python
-# =========================
+# ============================================================
+
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.so
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
 
 # Virtual environments
 .venv/
 venv/
 env/
+ENV/
 
-# =========================
-# Build artifacts
-# =========================
-build/
+# Python packaging
+*.egg-info/
 dist/
-*.zip
+*.egg
 
-# =========================
-# IDEs
-# =========================
+
+# ============================================================
+# Lambda build artifacts
+# ============================================================
+
+# Generated dependency/package directories
+lambdas/*/package/
+
+# Generated Lambda ZIP files
+build/*.zip
+
+
+# ============================================================
+# Terraform
+# ============================================================
+
+.terraform/
+.terraform.lock.hcl
+
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+tfplan
+*.tfplan
+
+
+# ============================================================
+# Terraform generated/local files
+# ============================================================
+
+terraform/.terraform/
+terraform/tfplan
+terraform/db_verifier_response.json
+
+
+# ============================================================
+# Environment / secrets
+# ============================================================
+
+.env
+.env.*
+*.secret
+*.pem
+*.key
+
+
+# ============================================================
+# OS / editor files
+# ============================================================
+
+.DS_Store
+Thumbs.db
+
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# =========================
-# OS files
-# =========================
-.DS_Store
-Thumbs.db
 
-# =========================
-# Logs
-# =========================
-*.log
+# ============================================================
+# Temporary files
+# ============================================================
 
-# =========================
-# Environment variables
-# =========================
-.env
-.env.*
-
-# =========================
-# Docker
-# =========================
-docker-compose.override.yml
-
-# =========================
-# AWS
-# =========================
-.aws-sam/
-.serverless/
-
-# Local AWS credentials (if ever created)
-credentials
-config
-
-# =========================
-# Misc
-# =========================
-*.bak
 *.tmp
+*.temp
+*.log
+/tmp/
