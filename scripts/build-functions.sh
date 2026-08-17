@@ -40,13 +40,12 @@ DEPENDENCY_FUNCTIONS=(
   "collector"
   "anomaly_detector"
   "data_seeder"
+  "db_migrator"
   "db_verifier"
 )
 
 # Functions that only contain application code / migrations.
-NO_DEPENDENCY_FUNCTIONS=(
-  "db_migrator"
-)
+NO_DEPENDENCY_FUNCTIONS=()
 
 ###############################################################################
 # Helpers
@@ -137,6 +136,11 @@ build_with_dependencies() {
   echo "Copying Lambda handler..."
 
   cp "${function_dir}/app.py" "$package_dir/"
+  
+  if [[ "$function_name" == "db_migrator" && -d "${function_dir}/migrations" ]]; then
+    echo "Copying migrations..."
+    cp -r "${function_dir}/migrations" "$package_dir/"
+  fi
 
   cleanup_package_artifacts "$package_dir"
 
