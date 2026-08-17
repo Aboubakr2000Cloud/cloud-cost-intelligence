@@ -31,6 +31,7 @@ ssm_client = boto3.client("ssm")
 # Secrets Manager
 # ─────────────────────────────────────────────────────────────
 
+
 def get_db_credentials():
     """
     Retrieve RDS credentials from Secrets Manager.
@@ -51,8 +52,7 @@ def get_db_credentials():
     )
 
     parameters = {
-        parameter["Name"]: parameter["Value"]
-        for parameter in response["Parameters"]
+        parameter["Name"]: parameter["Value"] for parameter in response["Parameters"]
     }
 
     secret_response = secrets_client.get_secret_value(
@@ -74,6 +74,7 @@ def get_db_credentials():
 # Database connection
 # ─────────────────────────────────────────────────────────────
 
+
 def get_db():
     """
     Create a connection to the RDS MySQL database.
@@ -94,6 +95,7 @@ def get_db():
 # ─────────────────────────────────────────────────────────────
 # Cost Explorer
 # ─────────────────────────────────────────────────────────────
+
 
 def fetch_cost_data(start_date, end_date):
     """
@@ -127,6 +129,7 @@ def fetch_cost_data(start_date, end_date):
 # Store Cost Explorer data
 # ─────────────────────────────────────────────────────────────
 
+
 def store_cost_data(conn, results, is_synthetic=False):
     """
     Store Cost Explorer results in the daily_costs table.
@@ -148,9 +151,7 @@ def store_cost_data(conn, results, is_synthetic=False):
                     else "global"
                 )
 
-                amount = Decimal(
-                    group["Metrics"]["BlendedCost"]["Amount"]
-                )
+                amount = Decimal(group["Metrics"]["BlendedCost"]["Amount"])
 
                 # Ignore zero-cost records.
                 if amount == 0:
@@ -193,6 +194,7 @@ def store_cost_data(conn, results, is_synthetic=False):
 # Monthly summaries
 # ─────────────────────────────────────────────────────────────
 
+
 def update_monthly_summaries(conn):
     """
     Refresh monthly cost summaries for the recent billing period.
@@ -233,6 +235,7 @@ def update_monthly_summaries(conn):
 # ─────────────────────────────────────────────────────────────
 # Collection logging
 # ─────────────────────────────────────────────────────────────
+
 
 def log_collection(
     conn,
@@ -283,6 +286,7 @@ def log_collection(
 # Lambda handler
 # ─────────────────────────────────────────────────────────────
 
+
 def lambda_handler(event, context):
     """
     Main Lambda entry point.
@@ -302,10 +306,7 @@ def lambda_handler(event, context):
     # The overlapping window helps catch billing updates or gaps.
     end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    start_date = (
-        datetime.now(timezone.utc)
-        - timedelta(days=7)
-    ).strftime("%Y-%m-%d")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
     conn = None
     records_stored = 0
@@ -343,11 +344,7 @@ def lambda_handler(event, context):
 
         # Calculate execution duration.
         duration_ms = int(
-            (
-                datetime.now(timezone.utc)
-                - start_time
-            ).total_seconds()
-            * 1000
+            (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         )
 
         # Record successful collection.
@@ -390,9 +387,7 @@ def lambda_handler(event, context):
                     error=str(e),
                 )
             except Exception:
-                logger.exception(
-                    "Failed to write collection failure log"
-                )
+                logger.exception("Failed to write collection failure log")
 
         # Re-raise so Lambda reports the invocation as failed.
         raise
@@ -401,4 +396,3 @@ def lambda_handler(event, context):
         # Always close the database connection.
         if conn:
             conn.close()
-

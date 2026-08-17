@@ -122,6 +122,7 @@ SERVICE_PROFILES = {
 # Configuration
 # ─────────────────────────────────────────────────────────────
 
+
 def get_db_credentials():
     """Load database configuration from SSM and Secrets Manager."""
 
@@ -138,8 +139,7 @@ def get_db_credentials():
     )
 
     parameters = {
-        parameter["Name"]: parameter["Value"]
-        for parameter in response["Parameters"]
+        parameter["Name"]: parameter["Value"] for parameter in response["Parameters"]
     }
 
     secret_response = secrets_client.get_secret_value(
@@ -156,9 +156,11 @@ def get_db_credentials():
         "password": secret["password"],
     }
 
+
 # ─────────────────────────────────────────────────────────────
 # Synthetic cost generation
 # ─────────────────────────────────────────────────────────────
+
 
 def generate_daily_amount(base, variance, spike_chance, date_offset):
     """
@@ -189,13 +191,7 @@ def generate_daily_amount(base, variance, spike_chance, date_offset):
     else:
         spike_factor = 1.0
 
-    amount = (
-        base
-        * trend_factor
-        * dow_factor
-        * variance_factor
-        * spike_factor
-    )
+    amount = base * trend_factor * dow_factor * variance_factor * spike_factor
 
     return max(0.01, round(amount, 4))
 
@@ -203,6 +199,7 @@ def generate_daily_amount(base, variance, spike_chance, date_offset):
 # ─────────────────────────────────────────────────────────────
 # Database connection
 # ─────────────────────────────────────────────────────────────
+
 
 def get_database_connection():
     """
@@ -227,6 +224,7 @@ def get_database_connection():
 # Lambda handler
 # ─────────────────────────────────────────────────────────────
 
+
 def lambda_handler(event, context):
     """
     Generate and insert synthetic AWS cost data.
@@ -243,8 +241,7 @@ def lambda_handler(event, context):
         raise ValueError("days_back must be greater than zero")
 
     logger.info(
-        "Starting synthetic cost data generation: "
-        "days=%s, services=%s, region=%s",
+        "Starting synthetic cost data generation: " "days=%s, services=%s, region=%s",
         days_back,
         len(SERVICE_PROFILES),
         AWS_REGION,
@@ -262,9 +259,9 @@ def lambda_handler(event, context):
 
             for day_offset in range(days_back, 0, -1):
 
-                date = (
-                    datetime.now() - timedelta(days=day_offset)
-                ).strftime("%Y-%m-%d")
+                date = (datetime.now() - timedelta(days=day_offset)).strftime(
+                    "%Y-%m-%d"
+                )
 
                 for service, profile in SERVICE_PROFILES.items():
 
@@ -341,9 +338,7 @@ def lambda_handler(event, context):
 
             connection.commit()
 
-        logger.info(
-            "Monthly cost summaries successfully updated"
-        )
+        logger.info("Monthly cost summaries successfully updated")
 
         # ─────────────────────────────────────────────────────
         # Final result
@@ -367,16 +362,11 @@ def lambda_handler(event, context):
     except Exception:
         connection.rollback()
 
-        logger.exception(
-            "Synthetic data seeding failed"
-        )
+        logger.exception("Synthetic data seeding failed")
 
         raise
 
     finally:
         connection.close()
 
-        logger.info(
-            "Database connection closed"
-        )
-
+        logger.info("Database connection closed")

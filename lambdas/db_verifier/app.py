@@ -91,7 +91,6 @@ def lambda_handler(event, context):
 
             unique_index_exists = cursor.fetchone()["count"] > 0
 
-
             if not unique_index_exists:
 
                 cursor.execute(
@@ -104,9 +103,7 @@ def lambda_handler(event, context):
 
             connection.commit()
 
-            cursor.execute(
-                "SELECT COUNT(DISTINCT service) AS count FROM daily_costs"
-            )
+            cursor.execute("SELECT COUNT(DISTINCT service) AS count FROM daily_costs")
             distinct_services = cursor.fetchone()["count"]
 
             cursor.execute(
@@ -119,19 +116,13 @@ def lambda_handler(event, context):
             )
             date_range = cursor.fetchone()
 
-            cursor.execute(
-                "SELECT COUNT(*) AS count FROM monthly_summaries"
-            )
+            cursor.execute("SELECT COUNT(*) AS count FROM monthly_summaries")
             monthly_summaries = cursor.fetchone()["count"]
 
-            cursor.execute(
-                "SELECT COUNT(*) AS count FROM anomalies"
-            )
+            cursor.execute("SELECT COUNT(*) AS count FROM anomalies")
             anomalies = cursor.fetchone()["count"]
 
-            cursor.execute(
-                "SELECT COUNT(*) AS count FROM collection_log"
-            )
+            cursor.execute("SELECT COUNT(*) AS count FROM collection_log")
             collection_log = cursor.fetchone()["count"]
 
             cursor.execute(
@@ -147,11 +138,9 @@ def lambda_handler(event, context):
                 """
             )
             service_breakdown = cursor.fetchall()
-            
-            cursor.execute(
-                "SHOW CREATE TABLE anomalies"
-            )
-            anomalies_schema = cursor.fetchone()            
+
+            cursor.execute("SHOW CREATE TABLE anomalies")
+            anomalies_schema = cursor.fetchone()
 
         result = {
             "status": "success",

@@ -40,6 +40,7 @@ FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "*")
 # Database
 # ─────────────────────────────────────────────────────────────
 
+
 def get_db_connection():
     """
     Create a MySQL connection using credentials injected
@@ -67,6 +68,7 @@ def get_db_connection():
 # Serialization helpers
 # ─────────────────────────────────────────────────────────────
 
+
 def json_safe(value):
     """
     Convert MySQL/Python values into JSON-safe values.
@@ -86,15 +88,13 @@ def serialize_row(row):
     Convert every value in a database row into a JSON-safe value.
     """
 
-    return {
-        key: json_safe(value)
-        for key, value in row.items()
-    }
+    return {key: json_safe(value) for key, value in row.items()}
 
 
 # ─────────────────────────────────────────────────────────────
 # Request validation
 # ─────────────────────────────────────────────────────────────
+
 
 def get_positive_int_argument(
     name,
@@ -113,19 +113,13 @@ def get_positive_int_argument(
     try:
         value = int(raw_value)
     except (TypeError, ValueError):
-        raise ValueError(
-            f"{name} must be an integer."
-        )
+        raise ValueError(f"{name} must be an integer.")
 
     if value < 1:
-        raise ValueError(
-            f"{name} must be greater than zero."
-        )
+        raise ValueError(f"{name} must be greater than zero.")
 
     if value > maximum:
-        raise ValueError(
-            f"{name} cannot exceed {maximum}."
-        )
+        raise ValueError(f"{name} cannot exceed {maximum}.")
 
     return value
 
@@ -134,27 +128,20 @@ def get_positive_int_argument(
 # CORS
 # ─────────────────────────────────────────────────────────────
 
+
 @app.after_request
 def add_cors_headers(response):
     """
     Allow the CloudFront-hosted frontend to call the ECS API.
     """
 
-    response.headers["Access-Control-Allow-Origin"] = (
-        FRONTEND_ORIGIN
-    )
+    response.headers["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
 
-    response.headers["Access-Control-Allow-Headers"] = (
-        "Content-Type"
-    )
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
 
-    response.headers["Access-Control-Allow-Methods"] = (
-        "GET, OPTIONS"
-    )
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
 
-    response.headers["Cache-Control"] = (
-        "no-store"
-    )
+    response.headers["Cache-Control"] = "no-store"
 
     return response
 
@@ -162,6 +149,7 @@ def add_cors_headers(response):
 # ─────────────────────────────────────────────────────────────
 # Health
 # ─────────────────────────────────────────────────────────────
+
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -181,25 +169,29 @@ def health():
             cursor.execute("SELECT 1 AS healthy")
             result = cursor.fetchone()
 
-        return jsonify(
-            {
-                "status": "healthy",
-                "database": "connected",
-                "database_check": bool(result),
-            }
-        ), 200
-
-    except Exception:
-        logger.exception(
-            "Health check failed."
+        return (
+            jsonify(
+                {
+                    "status": "healthy",
+                    "database": "connected",
+                    "database_check": bool(result),
+                }
+            ),
+            200,
         )
 
-        return jsonify(
-            {
-                "status": "unhealthy",
-                "database": "unavailable",
-            }
-        ), 503
+    except Exception:
+        logger.exception("Health check failed.")
+
+        return (
+            jsonify(
+                {
+                    "status": "unhealthy",
+                    "database": "unavailable",
+                }
+            ),
+            503,
+        )
 
     finally:
         if connection:
@@ -209,6 +201,7 @@ def health():
 # ─────────────────────────────────────────────────────────────
 # Dashboard Forecast
 # ─────────────────────────────────────────────────────────────
+
 
 @app.route(
     "/api/costs/forecast",
@@ -247,14 +240,10 @@ def costs_forecast():
             1,
         )
 
-    days_in_month = (
-        next_month - first_day
-    ).days
+    days_in_month = (next_month - first_day).days
 
     days_elapsed = today.day
-    days_remaining = (
-        days_in_month - days_elapsed
-    )
+    days_remaining = days_in_month - days_elapsed
 
     connection = None
 
@@ -278,25 +267,15 @@ def costs_forecast():
 
             result = cursor.fetchone()
 
-        mtd_total = float(
-            result["mtd_total"] or 0
-        )
+        mtd_total = float(result["mtd_total"] or 0)
 
-        daily_rate = (
-            mtd_total / days_elapsed
-            if days_elapsed > 0
-            else 0
-        )
+        daily_rate = mtd_total / days_elapsed if days_elapsed > 0 else 0
 
-        forecast_total = (
-            daily_rate * days_in_month
-        )
+        forecast_total = daily_rate * days_in_month
 
         return jsonify(
             {
-                "month": today.strftime(
-                    "%Y-%m"
-                ),
+                "month": today.strftime("%Y-%m"),
                 "mtd_total": round(
                     mtd_total,
                     4,
@@ -317,15 +296,9 @@ def costs_forecast():
         )
 
     except Exception:
-        logger.exception(
-            "Failed to calculate cost forecast."
-        )
+        logger.exception("Failed to calculate cost forecast.")
 
-        return jsonify(
-            {
-                "error": "Unable to calculate cost forecast."
-            }
-        ), 500
+        return jsonify({"error": "Unable to calculate cost forecast."}), 500
 
     finally:
         if connection:
@@ -335,6 +308,7 @@ def costs_forecast():
 # ─────────────────────────────────────────────────────────────
 # Daily Costs
 # ─────────────────────────────────────────────────────────────
+
 
 @app.route(
     "/api/costs/daily",
@@ -369,14 +343,9 @@ def costs_daily():
         )
 
     except ValueError as exc:
-        return jsonify(
-            {"error": str(exc)}
-        ), 400
+        return jsonify({"error": str(exc)}), 400
 
-    start_date = (
-        date.today()
-        - timedelta(days=days - 1)
-    )
+    start_date = date.today() - timedelta(days=days - 1)
 
     end_date = date.today()
 
@@ -426,15 +395,9 @@ def costs_daily():
         )
 
     except Exception:
-        logger.exception(
-            "Failed to retrieve daily costs."
-        )
+        logger.exception("Failed to retrieve daily costs.")
 
-        return jsonify(
-            {
-                "error": "Unable to retrieve daily costs."
-            }
-        ), 500
+        return jsonify({"error": "Unable to retrieve daily costs."}), 500
 
     finally:
         if connection:
@@ -444,6 +407,7 @@ def costs_daily():
 # ─────────────────────────────────────────────────────────────
 # Top Services
 # ─────────────────────────────────────────────────────────────
+
 
 @app.route(
     "/api/costs/top-services",
@@ -472,14 +436,9 @@ def top_services():
         )
 
     except ValueError as exc:
-        return jsonify(
-            {"error": str(exc)}
-        ), 400
+        return jsonify({"error": str(exc)}), 400
 
-    start_date = (
-        date.today()
-        - timedelta(days=days - 1)
-    )
+    start_date = date.today() - timedelta(days=days - 1)
 
     connection = None
 
@@ -511,9 +470,7 @@ def top_services():
                     float(row["total"] or 0),
                     4,
                 ),
-                "days_active": int(
-                    row["days_active"] or 0
-                ),
+                "days_active": int(row["days_active"] or 0),
             }
             for row in rows
         ]
@@ -528,15 +485,9 @@ def top_services():
         )
 
     except Exception:
-        logger.exception(
-            "Failed to retrieve top services."
-        )
+        logger.exception("Failed to retrieve top services.")
 
-        return jsonify(
-            {
-                "error": "Unable to retrieve top services."
-            }
-        ), 500
+        return jsonify({"error": "Unable to retrieve top services."}), 500
 
     finally:
         if connection:
@@ -546,6 +497,7 @@ def top_services():
 # ─────────────────────────────────────────────────────────────
 # Alerts / Anomalies
 # ─────────────────────────────────────────────────────────────
+
 
 @app.route(
     "/api/alerts",
@@ -568,13 +520,9 @@ def alerts():
         )
 
     except ValueError as exc:
-        return jsonify(
-            {"error": str(exc)}
-        ), 400
+        return jsonify({"error": str(exc)}), 400
 
-    severity = request.args.get(
-        "severity"
-    )
+    severity = request.args.get("severity")
 
     allowed_severities = {
         "low",
@@ -584,15 +532,18 @@ def alerts():
     }
 
     if severity and severity not in allowed_severities:
-        return jsonify(
-            {
-                "error": (
-                    "Invalid severity. "
-                    "Allowed values: "
-                    "low, medium, high, critical."
-                )
-            }
-        ), 400
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Invalid severity. "
+                        "Allowed values: "
+                        "low, medium, high, critical."
+                    )
+                }
+            ),
+            400,
+        )
 
     connection = None
 
@@ -644,74 +595,39 @@ def alerts():
         for row in rows:
             alerts_data.append(
                 {
-                    "date": str(
-                        row["date"]
-                    ),
-                    "service": row[
-                        "service"
-                    ],
-                    "severity": row[
-                        "severity"
-                    ],
+                    "date": str(row["date"]),
+                    "service": row["service"],
+                    "severity": row["severity"],
                     "expected_amount": round(
-                        float(
-                            row[
-                                "expected_amount"
-                            ]
-                            or 0
-                        ),
+                        float(row["expected_amount"] or 0),
                         4,
                     ),
                     "actual_amount": round(
-                        float(
-                            row[
-                                "actual_amount"
-                            ]
-                            or 0
-                        ),
+                        float(row["actual_amount"] or 0),
                         4,
                     ),
                     "deviation_pct": round(
-                        float(
-                            row[
-                                "deviation_pct"
-                            ]
-                            or 0
-                        ),
+                        float(row["deviation_pct"] or 0),
                         2,
                     ),
                     "detected_at": (
-                        row[
-                            "detected_at"
-                        ].isoformat()
-                        if row[
-                            "detected_at"
-                        ]
-                        else None
+                        row["detected_at"].isoformat() if row["detected_at"] else None
                     ),
                 }
             )
 
         return jsonify(
             {
-                "count": len(
-                    alerts_data
-                ),
+                "count": len(alerts_data),
                 "limit": limit,
                 "alerts": alerts_data,
             }
         )
 
     except Exception:
-        logger.exception(
-            "Failed to retrieve anomalies."
-        )
+        logger.exception("Failed to retrieve anomalies.")
 
-        return jsonify(
-            {
-                "error": "Unable to retrieve alerts."
-            }
-        ), 500
+        return jsonify({"error": "Unable to retrieve alerts."}), 500
 
     finally:
         if connection:
@@ -722,35 +638,22 @@ def alerts():
 # Error handlers
 # ─────────────────────────────────────────────────────────────
 
+
 @app.errorhandler(404)
 def not_found(_error):
-    return jsonify(
-        {
-            "error": "Endpoint not found."
-        }
-    ), 404
+    return jsonify({"error": "Endpoint not found."}), 404
 
 
 @app.errorhandler(405)
 def method_not_allowed(_error):
-    return jsonify(
-        {
-            "error": "HTTP method not allowed."
-        }
-    ), 405
+    return jsonify({"error": "HTTP method not allowed."}), 405
 
 
 @app.errorhandler(500)
 def internal_error(_error):
-    logger.exception(
-        "Unhandled application error."
-    )
+    logger.exception("Unhandled application error.")
 
-    return jsonify(
-        {
-            "error": "Internal server error."
-        }
-    ), 500
+    return jsonify({"error": "Internal server error."}), 500
 
 
 # ─────────────────────────────────────────────────────────────
@@ -768,4 +671,3 @@ if __name__ == "__main__":
         ),
         debug=False,
     )
-

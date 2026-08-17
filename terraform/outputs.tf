@@ -97,3 +97,13 @@ output "db_verifier_lambda_name" {
   description = "Database verification Lambda function name"
   value       = module.db_verifier_lambda.function_name
 }
+
+output "task_definition_family" {
+  description = "ECS task definition family"
+  value       = var.service_name
+}
+
+output "container_name" {
+  description = "ECS application container name"
+  value       = var.container_name
+}

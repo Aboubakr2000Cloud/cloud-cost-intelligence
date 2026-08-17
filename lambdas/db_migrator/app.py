@@ -38,6 +38,7 @@ DB_PASSWORD_SECRET = os.environ["DB_PASSWORD_SECRET"]
 # Parameter Store
 # ─────────────────────────────────────────────────────────────
 
+
 def get_parameter(name):
     """
     Retrieve a database configuration value from SSM Parameter Store.
@@ -66,6 +67,7 @@ def get_database_configuration():
 # Secrets Manager
 # ─────────────────────────────────────────────────────────────
 
+
 def get_db_password():
     """
     Retrieve the database password from Secrets Manager.
@@ -77,23 +79,17 @@ def get_db_password():
         "password": "..."
     }
     """
-    response = secrets_client.get_secret_value(
-        SecretId=DB_PASSWORD_SECRET
-    )
+    response = secrets_client.get_secret_value(SecretId=DB_PASSWORD_SECRET)
 
     secret_string = response["SecretString"]
 
     try:
         secret = json.loads(secret_string)
     except json.JSONDecodeError:
-        raise ValueError(
-            "DB password secret must contain valid JSON."
-        )
+        raise ValueError("DB password secret must contain valid JSON.")
 
     if "password" not in secret:
-        raise ValueError(
-            "DB password secret does not contain a 'password' field."
-        )
+        raise ValueError("DB password secret does not contain a 'password' field.")
 
     return secret["password"]
 
@@ -101,6 +97,7 @@ def get_db_password():
 # ─────────────────────────────────────────────────────────────
 # Database connection
 # ─────────────────────────────────────────────────────────────
+
 
 def get_connection(config, password, database=None):
     """
@@ -130,6 +127,7 @@ def get_connection(config, password, database=None):
 # Schema migration
 # ─────────────────────────────────────────────────────────────
 
+
 def run_schema_migration(config, password):
     """
     Execute the SQL schema migration.
@@ -145,9 +143,7 @@ def run_schema_migration(config, password):
     )
 
     if not os.path.exists(migration_path):
-        raise FileNotFoundError(
-            f"Migration file not found: {migration_path}"
-        )
+        raise FileNotFoundError(f"Migration file not found: {migration_path}")
 
     with open(migration_path, "r", encoding="utf-8") as migration_file:
         sql = migration_file.read()
@@ -198,6 +194,7 @@ def run_schema_migration(config, password):
 # Lambda handler
 # ─────────────────────────────────────────────────────────────
 
+
 def lambda_handler(event, context):
     """
     Lambda entry point.
@@ -218,7 +215,6 @@ def lambda_handler(event, context):
 
     password = get_db_password()
 
-
     # Run the schema migration.
     statements_executed = run_schema_migration(
         config,
@@ -226,8 +222,7 @@ def lambda_handler(event, context):
     )
 
     logger.info(
-        "Database migration completed successfully. "
-        "Executed %d SQL statements.",
+        "Database migration completed successfully. " "Executed %d SQL statements.",
         statements_executed,
     )
 
@@ -236,4 +231,3 @@ def lambda_handler(event, context):
         "database": config["database"],
         "statements_executed": statements_executed,
     }
-

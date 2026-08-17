@@ -1,0 +1,689 @@
+name: Production Deployment
+
+###############################################################################
+# Cloud Cost Intelligence
+#
+# Production CD pipeline
+#
+# Flow:
+#
+#   CI
+#    │
+#    ▼
+#   Build Lambda packages
+#    │
+#    ▼
+#   Terraform Plan / Apply
+#    │
+#    ▼
+#   Build & Push API image
+#    │
+#    ▼
+#   Deploy ECS application
+#    │
+#    ▼
+#   Deploy frontend
+#    │
+#    ▼
+#   Smoke tests
+#    │
+#    ├── PASS ───────────────► Success
+#    │
+#    └── FAIL
+#         │
+#         ▼
+#       Automatic ECS rollback
+#         │
+#         ▼
+#       Smoke tests again
+#
+# Notes:
+#   - Lambda ZIPs are built BEFORE Terraform because Terraform Lambda
+#     resources reference the generated ZIP files.
+#   - Terraform creates/updates the infrastructure and ECR repository.
+#   - The ECS service may initially have no usable image on a completely
+#     fresh environment. The API image is pushed immediately afterwards,
+#     followed by an explicit ECS deployment.
+#   - Application rollback does NOT modify Terraform infrastructure.
+###############################################################################
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-west-1
+  TERRAFORM_DIR: terraform
+  PYTHON_VERSION: "3.11"
+
+defaults:
+  run:
+    shell: bash
+
+###############################################################################
+# Deploy Infrastructure
+###############################################################################
+
+jobs:
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    runs-on: ubuntu-latest
+    environment: production
+
+    outputs:
+      ecr_repository_url: ${{ steps.outputs.outputs.ecr_repository_url }}
+      ecs_cluster_name: ${{ steps.outputs.outputs.ecs_cluster_name }}
+      ecs_service_name: ${{ steps.outputs.outputs.ecs_service_name }}
+      task_definition_family: ${{ steps.outputs.outputs.task_definition_family }}
+      container_name: ${{ steps.outputs.outputs.container_name }}
+      alb_url: ${{ steps.outputs.outputs.alb_url }}
+      cloudfront_url: ${{ steps.outputs.outputs.cloudfront_url }}
+      cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
+      previous_task_definition: ${{ steps.previous.outputs.task_definition }}
+
+    steps:
+
+      #########################################################################
+      # Checkout exact commit that passed CI
+      #########################################################################
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      #########################################################################
+      # AWS
+      #########################################################################
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      #########################################################################
+      # Python
+      #########################################################################
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      #########################################################################
+      # Build Lambda ZIPs
+      #
+      # MUST happen before Terraform because the Lambda resources reference
+      # files under build/*.zip.
+      #########################################################################
+
+      - name: Build Lambda Packages
+        run: |
+          chmod +x scripts/build-functions.sh
+          bash scripts/build-functions.sh
+
+      - name: Upload Lambda Packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-packages
+          path: build/*.zip
+          if-no-files-found: error
+
+      #########################################################################
+      # Terraform
+      #########################################################################
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          terraform init \
+            -backend-config="backends/prod.hcl"
+
+      - name: Terraform Format Check
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform validate
+
+      #########################################################################
+      # Capture currently deployed ECS version BEFORE Terraform changes it.
+      #
+      # This is used only for application rollback.
+      #########################################################################
+
+      - name: Capture Previous ECS Task Definition
+        id: previous
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          CLUSTER="$(terraform -chdir=${TERRAFORM_DIR} output -raw ecs_cluster_name 2>/dev/null || true)"
+          SERVICE="$(terraform -chdir=${TERRAFORM_DIR} output -raw ecs_service_name 2>/dev/null || true)"
+
+          if [[ -z "$CLUSTER" || -z "$SERVICE" ]]; then
+            echo "No existing ECS deployment detected."
+            echo "task_definition=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_TASK_DEFINITION="$(
+            aws ecs describe-services \
+              --cluster "$CLUSTER" \
+              --services "$SERVICE" \
+              --query 'services[0].taskDefinition' \
+              --output text 2>/dev/null || true
+          )"
+
+          if [[ -z "$CURRENT_TASK_DEFINITION" || "$CURRENT_TASK_DEFINITION" == "None" ]]; then
+            echo "No existing ECS task definition detected."
+            echo "task_definition=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Previous task definition:"
+            echo "$CURRENT_TASK_DEFINITION"
+            echo "task_definition=$CURRENT_TASK_DEFINITION" >> "$GITHUB_OUTPUT"
+          fi
+
+      #########################################################################
+      # Terraform Plan
+      #########################################################################
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        run: |
+          terraform plan \
+            -var-file="envs/prod.tfvars" \
+            -out=tfplan
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: |
+            terraform/tfplan
+
+      #########################################################################
+      # Terraform Apply
+      #########################################################################
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        run: |
+          terraform apply \
+            -auto-approve \
+            tfplan
+
+      #########################################################################
+      # Export infrastructure context
+      #########################################################################
+
+      - name: Export Terraform Outputs
+        id: outputs
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          echo "ecr_repository_url=$(terraform output -raw repository_url)" >> "$GITHUB_OUTPUT"
+          echo "ecs_cluster_name=$(terraform output -raw ecs_cluster_name)" >> "$GITHUB_OUTPUT"
+          echo "ecs_service_name=$(terraform output -raw ecs_service_name)" >> "$GITHUB_OUTPUT"
+          echo "task_definition_family=$(terraform output -raw task_definition_family 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+          echo "container_name=$(terraform output -raw container_name 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+          echo "alb_url=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
+          echo "cloudfront_url=$(terraform output -raw cloudfront_url)" >> "$GITHUB_OUTPUT"
+
+          CLOUDFRONT_ID="$(
+            aws cloudfront list-distributions \
+              --query "DistributionList.Items[?DomainName=='$(terraform output -raw cloudfront_url | sed 's#https://##')'].Id | [0]" \
+              --output text
+          )"
+
+          if [[ -z "$CLOUDFRONT_ID" || "$CLOUDFRONT_ID" == "None" ]]; then
+            echo "CloudFront distribution ID could not be determined."
+            exit 1
+          fi
+
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> "$GITHUB_OUTPUT"
+
+      #########################################################################
+      # Summary
+      #########################################################################
+
+      - name: Infrastructure Summary
+        run: |
+          {
+            echo "## Infrastructure Deployment"
+            echo
+            echo "✅ Lambda packages built"
+            echo "✅ Terraform initialized"
+            echo "✅ Terraform validated"
+            echo "✅ Terraform plan generated"
+            echo "✅ Terraform applied"
+            echo
+            echo "### Infrastructure"
+            echo
+            echo "- ECS cluster: \`${{ steps.outputs.outputs.ecs_cluster_name }}\`"
+            echo "- ECS service: \`${{ steps.outputs.outputs.ecs_service_name }}\`"
+            echo "- ECR repository: \`${{ steps.outputs.outputs.ecr_repository_url }}\`"
+            echo "- CloudFront: \`${{ steps.outputs.outputs.cloudfront_url }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+###############################################################################
+# Build and Push API Image
+###############################################################################
+
+  build-and-push:
+    name: Build & Push API Image
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    environment: production
+
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        id: login-ecr
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push API Image
+        id: build
+        env:
+          ECR_REPOSITORY: ${{ needs.deploy-infrastructure.outputs.ecr_repository_url }}
+        run: |
+          IMAGE_URI="${ECR_REPOSITORY}:${GITHUB_SHA}"
+
+          echo "Building:"
+          echo "  $IMAGE_URI"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag "$IMAGE_URI" \
+            --push \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            api/
+
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      #########################################################################
+      # Container security
+      #########################################################################
+
+      - name: Scan API Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.build.outputs.image_uri }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Build Summary
+        run: |
+          {
+            echo "## API Image"
+            echo
+            echo "Image:"
+            echo "\`${{ steps.build.outputs.image_uri }}\`"
+            echo
+            echo "✅ Image pushed to ECR"
+            echo "✅ Trivy scan passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+###############################################################################
+# Deploy API to ECS
+###############################################################################
+
+  deploy-api:
+    name: Deploy API to ECS
+    needs:
+      - deploy-infrastructure
+      - build-and-push
+
+    runs-on: ubuntu-latest
+    environment: production
+
+    outputs:
+      deployed_task_definition: ${{ steps.deploy.outputs.task-definition }}
+
+    steps:
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      #########################################################################
+      # Retrieve current task definition
+      #########################################################################
+
+      - name: Download Current Task Definition
+        env:
+          TASK_DEFINITION_FAMILY: ${{ needs.deploy-infrastructure.outputs.task_definition_family }}
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$TASK_DEFINITION_FAMILY" \
+            --query taskDefinition \
+            > task-definition.json
+
+      #########################################################################
+      # Replace only the application image
+      #########################################################################
+
+      - name: Render New Task Definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ needs.deploy-infrastructure.outputs.container_name }}
+          image: ${{ needs.build-and-push.outputs.image_uri }}
+
+      #########################################################################
+      # Deploy
+      #########################################################################
+
+      - name: Deploy ECS Service
+        id: deploy
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ needs.deploy-infrastructure.outputs.ecs_cluster_name }}
+          service: ${{ needs.deploy-infrastructure.outputs.ecs_service_name }}
+          wait-for-service-stability: true
+
+      - name: Deployment Summary
+        run: |
+          {
+            echo "## ECS Application Deployment"
+            echo
+            echo "✅ New task definition deployed"
+            echo
+            echo "Image:"
+            echo "\`${{ needs.build-and-push.outputs.image_uri }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+###############################################################################
+# Deploy Frontend
+###############################################################################
+
+  deploy-frontend:
+    name: Deploy Frontend
+    needs:
+      - deploy-infrastructure
+      - deploy-api
+
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          terraform init \
+            -backend-config="backends/prod.hcl"
+
+      - name: Deploy Frontend
+        env:
+          ALB_URL: ${{ needs.deploy-infrastructure.outputs.alb_url }}
+        run: |
+          chmod +x scripts/deploy-frontend.sh
+          bash scripts/deploy-frontend.sh
+
+      - name: Frontend Summary
+        run: |
+          {
+            echo "## Frontend Deployment"
+            echo
+            echo "✅ Frontend uploaded to S3"
+            echo "✅ CloudFront cache invalidated"
+            echo
+            echo "Dashboard:"
+            echo "${{ needs.deploy-infrastructure.outputs.cloudfront_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+###############################################################################
+# Smoke Tests
+###############################################################################
+
+  smoke-test:
+    name: Post-Deployment Smoke Tests
+    needs:
+      - deploy-infrastructure
+      - deploy-api
+      - deploy-frontend
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Run Smoke Tests
+        run: |
+          chmod +x scripts/smoke-test.sh
+
+          bash scripts/smoke-test.sh \
+            "${{ needs.deploy-infrastructure.outputs.alb_url }}" \
+            "${{ needs.deploy-infrastructure.outputs.cloudfront_url }}"
+
+      - name: Smoke Test Summary
+        run: |
+          {
+            echo "## Smoke Tests"
+            echo
+            echo "✅ API health endpoint passed"
+            echo "✅ Alerts endpoint passed"
+            echo "✅ CloudFront frontend passed"
+            echo "✅ Frontend content verified"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+###############################################################################
+# Automatic Rollback
+###############################################################################
+
+  rollback:
+    name: Automatic ECS Rollback
+    needs:
+      - deploy-infrastructure
+      - deploy-api
+      - smoke-test
+
+    if: >
+      always() &&
+      needs.deploy-api.result == 'success' &&
+      needs.smoke-test.result == 'failure' &&
+      needs.deploy-infrastructure.outputs.previous_task_definition != ''
+
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      #########################################################################
+      # Restore previous task definition
+      #
+      # Infrastructure remains untouched.
+      #########################################################################
+
+      - name: Roll Back ECS Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ needs.deploy-infrastructure.outputs.previous_task_definition }}
+          cluster: ${{ needs.deploy-infrastructure.outputs.ecs_cluster_name }}
+          service: ${{ needs.deploy-infrastructure.outputs.ecs_service_name }}
+          wait-for-service-stability: true
+
+      #########################################################################
+      # Verify recovery
+      #########################################################################
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Verify Rollback
+        run: |
+          chmod +x scripts/smoke-test.sh
+
+          bash scripts/smoke-test.sh \
+            "${{ needs.deploy-infrastructure.outputs.alb_url }}" \
+            "${{ needs.deploy-infrastructure.outputs.cloudfront_url }}"
+
+      - name: Rollback Summary
+        run: |
+          {
+            echo "## Automatic Rollback"
+            echo
+            echo "⚠️ Smoke tests failed after deployment."
+            echo
+            echo "✅ Previous ECS task definition restored."
+            echo "✅ ECS service returned to stability."
+            echo "✅ Recovery smoke tests passed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+###############################################################################
+# Deployment Summary
+###############################################################################
+
+  deployment-summary:
+    name: Deployment Summary
+    needs:
+      - deploy-infrastructure
+      - build-and-push
+      - deploy-api
+      - deploy-frontend
+      - smoke-test
+      - rollback
+
+    if: always()
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Evaluate Deployment
+        env:
+          INFRA_RESULT: ${{ needs.deploy-infrastructure.result }}
+          IMAGE_RESULT: ${{ needs.build-and-push.result }}
+          API_RESULT: ${{ needs.deploy-api.result }}
+          FRONTEND_RESULT: ${{ needs.deploy-frontend.result }}
+          SMOKE_RESULT: ${{ needs.smoke-test.result }}
+          ROLLBACK_RESULT: ${{ needs.rollback.result }}
+        run: |
+          {
+            echo "# 🚀 CloudCost Production Deployment"
+            echo
+            echo "| Stage | Result |"
+            echo "|---|---|"
+            echo "| Infrastructure | ${INFRA_RESULT} |"
+            echo "| API Image | ${IMAGE_RESULT} |"
+            echo "| ECS API | ${API_RESULT} |"
+            echo "| Frontend | ${FRONTEND_RESULT} |"
+            echo "| Smoke Tests | ${SMOKE_RESULT} |"
+            echo "| Automatic Rollback | ${ROLLBACK_RESULT} |"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$INFRA_RESULT" != "success" ]]; then
+            echo "❌ Infrastructure deployment failed."
+            exit 1
+          fi
+
+          if [[ "$IMAGE_RESULT" != "success" ]]; then
+            echo "❌ API image build failed."
+            exit 1
+          fi
+
+          if [[ "$API_RESULT" != "success" ]]; then
+            echo "❌ ECS deployment failed."
+            exit 1
+          fi
+
+          if [[ "$FRONTEND_RESULT" != "success" ]]; then
+            echo "❌ Frontend deployment failed."
+            exit 1
+          fi
+
+          if [[ "$SMOKE_RESULT" == "success" ]]; then
+            echo "✅ Production deployment successful."
+            exit 0
+          fi
+
+          if [[ "$ROLLBACK_RESULT" == "success" ]]; then
+            echo "⚠️ Deployment failed smoke tests but automatic rollback succeeded."
+            exit 1
+          fi
+
+          echo "❌ Deployment and automatic recovery failed."
+          exit 1
+

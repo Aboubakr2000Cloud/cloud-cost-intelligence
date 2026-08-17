@@ -35,9 +35,7 @@ sns_client = boto3.client(
 # Configuration
 # ─────────────────────────────────────────────────────────────
 
-ANOMALY_THRESHOLD_PCT = float(
-    os.environ.get("ANOMALY_THRESHOLD_PCT", "25")
-)
+ANOMALY_THRESHOLD_PCT = float(os.environ.get("ANOMALY_THRESHOLD_PCT", "25"))
 
 SNS_TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN")
 
@@ -45,6 +43,7 @@ SNS_TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN")
 # ─────────────────────────────────────────────────────────────
 # Database credentials
 # ─────────────────────────────────────────────────────────────
+
 
 def get_db_credentials():
     """
@@ -66,8 +65,7 @@ def get_db_credentials():
     )
 
     parameters = {
-        parameter["Name"]: parameter["Value"]
-        for parameter in response["Parameters"]
+        parameter["Name"]: parameter["Value"] for parameter in response["Parameters"]
     }
 
     secret_response = secrets_client.get_secret_value(
@@ -88,6 +86,7 @@ def get_db_credentials():
 # ─────────────────────────────────────────────────────────────
 # Database connection
 # ─────────────────────────────────────────────────────────────
+
 
 def get_db():
     """
@@ -110,6 +109,7 @@ def get_db():
 # Anomaly detection
 # ─────────────────────────────────────────────────────────────
 
+
 def detect_anomalies(conn, target_date):
     """
     Compare the target day's cost for each service against
@@ -124,13 +124,9 @@ def detect_anomalies(conn, target_date):
         "%Y-%m-%d",
     )
 
-    history_start = (
-        target - timedelta(days=8)
-    ).strftime("%Y-%m-%d")
+    history_start = (target - timedelta(days=8)).strftime("%Y-%m-%d")
 
-    history_end = (
-        target - timedelta(days=1)
-    ).strftime("%Y-%m-%d")
+    history_end = (target - timedelta(days=1)).strftime("%Y-%m-%d")
 
     with conn.cursor() as cursor:
         cursor.execute(
@@ -182,6 +178,7 @@ def detect_anomalies(conn, target_date):
 # Severity classification
 # ─────────────────────────────────────────────────────────────
 
+
 def classify_severity(deviation_pct):
     """
     Convert percentage deviation into a severity level.
@@ -203,6 +200,7 @@ def classify_severity(deviation_pct):
 # Store anomaly
 # ─────────────────────────────────────────────────────────────
 
+
 def store_anomaly(conn, date, anomaly):
     """
     Store or update an anomaly.
@@ -211,13 +209,9 @@ def store_anomaly(conn, date, anomaly):
     Returns False when the anomaly already existed.
     """
 
-    deviation_pct = float(
-        anomaly["deviation_pct"]
-    )
+    deviation_pct = float(anomaly["deviation_pct"])
 
-    severity = classify_severity(
-        deviation_pct
-    )
+    severity = classify_severity(deviation_pct)
 
     with conn.cursor() as cursor:
 
@@ -259,12 +253,8 @@ def store_anomaly(conn, date, anomaly):
             (
                 date,
                 anomaly["service"],
-                float(
-                    anomaly["expected_amount"] or 0
-                ),
-                float(
-                    anomaly["actual_amount"]
-                ),
+                float(anomaly["expected_amount"] or 0),
+                float(anomaly["actual_amount"]),
                 deviation_pct,
                 severity,
             ),
@@ -274,9 +264,11 @@ def store_anomaly(conn, date, anomaly):
 
         return existing is None
 
+
 # ─────────────────────────────────────────────────────────────
 # SNS alert
 # ─────────────────────────────────────────────────────────────
+
 
 def send_alert(anomaly, date):
     """
@@ -284,27 +276,16 @@ def send_alert(anomaly, date):
     """
 
     if not SNS_TOPIC_ARN:
-        logger.warning(
-            "SNS_TOPIC_ARN is not configured. "
-            "Skipping alert."
-        )
+        logger.warning("SNS_TOPIC_ARN is not configured. " "Skipping alert.")
         return False
 
-    deviation_pct = float(
-        anomaly["deviation_pct"]
-    )
+    deviation_pct = float(anomaly["deviation_pct"])
 
-    severity = classify_severity(
-        deviation_pct
-    )
+    severity = classify_severity(deviation_pct)
 
-    expected_amount = float(
-        anomaly["expected_amount"] or 0
-    )
+    expected_amount = float(anomaly["expected_amount"] or 0)
 
-    actual_amount = float(
-        anomaly["actual_amount"]
-    )
+    actual_amount = float(anomaly["actual_amount"])
 
     message = (
         "AWS Cost Anomaly Detected\n\n"
@@ -335,6 +316,7 @@ def send_alert(anomaly, date):
 # Lambda handler
 # ─────────────────────────────────────────────────────────────
 
+
 def handler(event, context):
     """
     Run anomaly detection for a target date.
@@ -345,10 +327,7 @@ def handler(event, context):
 
     target_date = event.get(
         "date",
-        (
-            datetime.now(timezone.utc)
-            - timedelta(days=1)
-        ).strftime("%Y-%m-%d"),
+        (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d"),
     )
 
     logger.info(
@@ -386,34 +365,23 @@ def handler(event, context):
             anomalies_found += 1
 
             # Send alerts for medium or higher severity.
-            severity = classify_severity(
-                float(
-                    anomaly["deviation_pct"]
-                )
-            )
+            severity = classify_severity(float(anomaly["deviation_pct"]))
 
-            if (
-                is_new_anomaly
-                and severity in (
-                  "medium",
-                  "high",
-                  "critical",
-               )
+            if is_new_anomaly and severity in (
+                "medium",
+                "high",
+                "critical",
             ):
-               if send_alert(
+                if send_alert(
                     anomaly,
                     target_date,
-               ):
+                ):
                     alerts_sent += 1
 
                     logger.info(
                         "Alert sent for %s: +%.1f%%",
                         anomaly["service"],
-                        float(
-                            anomaly[
-                                "deviation_pct"
-                            ]
-                        ),
+                        float(anomaly["deviation_pct"]),
                     )
 
         return {
@@ -425,4 +393,3 @@ def handler(event, context):
 
     finally:
         conn.close()
-
