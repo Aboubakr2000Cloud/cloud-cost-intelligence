@@ -186,7 +186,10 @@ def generate_daily_amount(base, variance, spike_chance, date_offset):
     variance_factor = 1 + random.uniform(-variance, variance)
 
     # Occasional cost spike
-    if random.random() < spike_chance:
+    if date_offset == 3 and base == 45.0:
+        # Deliberate demo anomaly for EC2
+        spike_factor = 8.0
+    elif random.random() < spike_chance:
         spike_factor = random.uniform(1.5, 2.5)
     else:
         spike_factor = 1.0
