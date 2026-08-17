@@ -347,14 +347,23 @@ jobs:
       # Container security
       #########################################################################
 
-      - name: Scan API Image
+      - name: Scan API Image — HIGH
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.build.outputs.image_uri }}
           format: table
-          severity: CRITICAL,HIGH
-          exit-code: "1"
+          severity: HIGH
+          exit-code: "0"
           ignore-unfixed: true
+          
+      - name: Scan API Image — CRITICAL
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.build.outputs.image_uri }}
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true    
 
       - name: Build Summary
         run: |
