@@ -1,4 +1,3 @@
-id="d81k42"
 #!/usr/bin/env bash
 set -euo pipefail
 
