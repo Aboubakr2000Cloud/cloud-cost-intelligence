@@ -338,8 +338,7 @@ jobs:
             --platform linux/amd64 \
             --tag "$IMAGE_URI" \
             --push \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
+            --no-cache \
             api/
 
           echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
