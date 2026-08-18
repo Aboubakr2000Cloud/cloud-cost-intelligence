@@ -141,11 +141,12 @@ The platform is divided into five major areas:
 ```
 
 > **Architecture diagram:**
-> Add the final AI-generated/draw.io architecture diagram here.
->
-> Recommended file:
->
+
 > `docs/architecture/aws-architecture.png`
+
+<p align="center">
+<img src="docs/architecture/aws-architecture.png" width="900">
+</p>
 
 ---
 
@@ -276,20 +277,18 @@ S3 Frontend Bucket
 
 ### Screenshot
 
-📸 **Recommended screenshot #1 — Dashboard Overview**
-
-Show:
-
-* total cost
-* cost breakdown
-* service-level spending
-* anomaly indicators
-
-Place it directly under this section rather than creating one giant screenshots section.
-
-Recommended file:
-
-`docs/screenshots/dashboard-overview.png`
+<p align="center">
+<img src="docs/screenshots/dashboard-overview-1.png" width="900">
+</p>
+<p align="center">
+<img src="docs/screenshots/dashboard-overview-2.png" width="900">
+</p>
+<p align="center">
+<img src="docs/screenshots/dashboard-overview-3.png" width="900">
+</p>
+<p align="center">
+<img src="docs/screenshots/dashboard-overview-4.png" width="900">
+</p>
 
 ---
 
@@ -367,18 +366,18 @@ This separation allows the API, ingestion pipeline, and analytical workload to e
 
 ### Screenshot
 
-📸 **Recommended screenshot #2 — Cost / Anomaly Dashboard**
-
-Show the dashboard section where the reviewer can see:
-
-* cost trends
-* service-level costs
-* anomaly information
-* alert-related information
-
-Recommended file:
-
-`docs/screenshots/cost-anomaly-dashboard.png`
+<p align="center">
+<img src="docs/screenshots/cost-explorer-1.png" width="900">
+</p>
+<p align="center">
+<img src="docs/screenshots/cost-explorer-2.png" width="900">
+</p>
+<p align="center">
+<img src="docs/screenshots/anomalies.png" width="900">
+</p>
+<p align="center">
+<img src="docs/screenshots/notification.png" width="900">
+</p>
 
 ---
 
@@ -459,19 +458,9 @@ This was particularly important during development because several production-st
 
 ### Screenshot
 
-📸 **Recommended screenshot #3 — CloudWatch / Operational Evidence**
-
-Capture one useful CloudWatch view showing either:
-
-* Lambda execution/logs
-* ECS application logs
-* anomaly processing
-
-Do not include multiple nearly identical log screenshots.
-
-Recommended file:
-
-`docs/screenshots/cloudwatch-observability.png`
+<p align="center">
+<img src="docs/screenshots/cloudwatch-observability.png" width="900">
+</p>
 
 ---
 
@@ -558,15 +547,9 @@ A successful production deployment therefore represents more than a successful `
 
 ### Screenshot
 
-📸 **Recommended screenshot #4 — Successful GitHub Actions Deployment**
-
-Show the complete deployment workflow with the major jobs passing.
-
-Recommended file:
-
-`docs/screenshots/github-actions-deployment.png`
-
-This is much more valuable than screenshots of individual lint jobs.
+<p align="center">
+<img src="docs/screenshots/github-actions-deployment.png" width="900">
+</p>
 
 ---
 
@@ -1002,6 +985,8 @@ cloud-cost-intelligence/
 ├── scripts/
 │   ├── build-functions.sh
 │   ├── seed-data.sh
+│   ├── rollback.sh
+│   ├── deploy-frontend.sh
 │   └── smoke-test.sh
 │
 ├── .github/
@@ -1014,10 +999,6 @@ cloud-cost-intelligence/
 │   │   └── aws-architecture.png
 │   │
 │   └── screenshots/
-│       ├── dashboard-overview.png
-│       ├── cost-anomaly-dashboard.png
-│       ├── cloudwatch-observability.png
-│       └── github-actions-deployment.png
 │
 └── README.md
 ```
@@ -1098,48 +1079,6 @@ terraform destroy \
 ```
 
 Verify that billable resources have been removed after destruction.
-
----
-
-# 📸 Recommended Screenshots
-
-The README intentionally avoids becoming a screenshot gallery.
-
-Only the most valuable evidence should be included:
-
-### 1. Dashboard Overview
-
-Demonstrates that the final product is actually usable.
-
-### 2. Cost / Anomaly View
-
-Demonstrates the project's core business functionality.
-
-### 3. CloudWatch Evidence
-
-Demonstrates operational visibility.
-
-### 4. GitHub Actions Deployment
-
-Demonstrates the automated delivery pipeline.
-
-### Optional 5. AWS Infrastructure
-
-If the architecture diagram does not already communicate the infrastructure clearly, include **one** AWS console screenshot showing the deployed environment.
-
-Avoid screenshots of:
-
-* individual Terraform resources
-* successful `terraform init`
-* successful `terraform fmt`
-* individual linting jobs
-* terminal commands
-* every Lambda
-* every IAM policy
-* every S3 bucket
-* every CloudWatch log line
-
-The README should demonstrate **outcomes**, not document every command executed during development.
 
 ---
 
