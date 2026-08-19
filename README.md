@@ -1197,7 +1197,7 @@ The result is a complete AWS platform demonstrating infrastructure provisioning,
 
 # 👨‍💻 Engineering Journey
 
-This project was the culmination of a multi-week cloud engineering roadmap focused on moving from individual AWS services toward designing and operating complete production-style systems.
+This project represents the culmination of my hands-on cloud engineering work, bringing together infrastructure, application development, automation, security, observability, and CI/CD into a single production-style AWS system.
 
 The most valuable part was not simply getting the architecture deployed.
 
