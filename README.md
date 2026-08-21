@@ -142,8 +142,6 @@ The platform is divided into five major areas:
 
 > **Architecture diagram:**
 
-> `docs/architecture/aws-architecture.png`
-
 <p align="center">
 <img src="docs/architecture/aws-architecture.png" width="900">
 </p>
